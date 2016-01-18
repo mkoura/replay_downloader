@@ -214,7 +214,7 @@ class Proc:
 
 
 class Downloads:
-    def __init__(self, msg, conf):
+    def __init__(self, msg: Msgs, conf: Config):
         self.msg = msg
         self.conf = conf
         self.destination = ''
@@ -354,7 +354,7 @@ class Downloads:
 
 
 class Decodings:
-    def __init__(self, msg, conf):
+    def __init__(self, msg: Msgs, conf: Config):
         self.msg = msg
         self.conf = conf
         self.destination = ''
