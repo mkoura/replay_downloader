@@ -377,7 +377,9 @@ class Decodings:
         file_type = file_info.type
         res_file = self.destination + os.path.splitext(local_file_name)[0]
 
-        if (os.path.isfile(res_file) or (file_type is not Ftypes.FLV)):
+        if (file_type is not Ftypes.FLV):
+            return None
+        elif os.path.isfile(res_file):
             self.msg.errors.add("WARNING: skipping decoding, file exists: " + res_file)
             self.msg.decoding_skipped.add("" + res_file)
             return None
