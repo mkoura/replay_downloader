@@ -451,7 +451,7 @@ if __name__ == "__main__":
         cflist = (args.config_file)
     else:
         cflist = ('replay_downloader.ini',
-                  os.path.expanduser('~/.config/replay_downloader.ini'))
+                  os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'))
 
     config_file = ''
     for cf in cflist:
