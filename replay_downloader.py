@@ -254,15 +254,22 @@ class Downloads:
             print(str(e), file=sys.stderr)
 
     @staticmethod
-    def get_replay_list(auth_section, conf_section, outfile: str):
+    def get_replay_list(replay_type: int, conf: Config, outfile: str):
         def _get_session(desc):
-            if (auth_section.login == '') or (auth_section.password == ''):
+            if (conf.AUTH.login == '') or (conf.AUTH.password == ''):
                 raise ValueError('Login or password are not configured')
 
             payload = {
-                'login': auth_section.login,
-                'password': auth_section.password
+                'login': conf.AUTH.login,
+                'password': conf.AUTH.password
             }
+
+            if replay_type == Rtypes.RTMP:
+                conf_section = conf.RTMP
+            elif replay_type == Rtypes.HTTP:
+                conf_section = conf.HTTP
+            else:
+                raise ValueError("Unrecognized replay type")
 
             with session() as c:
                 c.post(conf_section.login_url, data=payload)
@@ -463,10 +470,10 @@ if __name__ == "__main__":
     conf = Config(config_file)
 
     if (args.get_avail is not 'None'):
-        Downloads.get_replay_list(conf.AUTH, conf.RTMP, args.get_avail)
+        Downloads.get_replay_list(Rtypes.RTMP, conf, args.get_avail)
         sys.exit(retval)
     if (args.get_avail_mobile is not 'None'):
-        Downloads.get_replay_list(conf.AUTH, conf.HTTP, args.get_avail_mobile)
+        Downloads.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile)
         sys.exit(retval)
 
     msg = Msgs()
