@@ -38,7 +38,7 @@ class Config:
 
     def __init__(self, cfg_path: str):
         self.cfg = configparser.ConfigParser()
-        self.cfg['DEFAULT'] = {'concurrency': '4'}
+        self.cfg['DEFAULT'] = {'concurrency': '3'}
         self.cfg['AUTH'] = {'login': '', 'password': ''}
         self.cfg['COMMANDS'] = {'rtmpdump': 'rtmpdump', 'ffmpeg': 'ffmpeg'}
         self.cfg['RTMP'] = {'replay_url': 'http://webcast.dzogchen.net/index.php?id=replay',
