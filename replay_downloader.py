@@ -72,18 +72,8 @@ class Config:
         self.HTTP.login_url = self.cfg['HTTP']['login_url']
         self.HTTP.list_regex = self.cfg['HTTP']['list_regex']
 
-    def get(self, section: str, my_setting: str, method=None):
-        if method is None:
-            method = self.cfg.get
-
-        try:
-            retval = method(section, my_setting)
-        except configparser.NoOptionError:
-            retval = None
-        return retval
-
-    def getint(self, section: str, my_setting: str):
-        return self.get(section, my_setting, self.cfg.getint)
+        self.get = self.cfg.get
+        self.getint = self.cfg.getint
 
 
 class Scheduler:
