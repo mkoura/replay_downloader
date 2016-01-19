@@ -72,7 +72,6 @@ class Config:
         self.HTTP.login_url = self.cfg['HTTP']['login_url']
         self.HTTP.list_regex = self.cfg['HTTP']['list_regex']
 
-        self.get = self.cfg.get
         self.getint = self.cfg.getint
 
 
