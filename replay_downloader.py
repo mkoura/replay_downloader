@@ -76,28 +76,34 @@ class Config:
 
 
 class Scheduler:
-    def __init__(self, schedule_callback, finish_callback, to_do: list):
-        self.avail_slots = 4
+    def __init__(self, spawn_callback, finish_callback, to_do: list):
+        self.avail_slots = 3
         self.to_do = to_do
         self.running_procs = []
-        self.spawn = schedule_callback
-        self.finish = finish_callback
+        self.spawn_callback = spawn_callback
+        self.finish_callback = finish_callback
 
-    def run(self) -> bool:
+    def _spawn(self) -> bool:
         while ((self.avail_slots != 0) and (len(self.to_do) != 0)):
-            procinfo = self.spawn(self.to_do.pop())
+            procinfo = self.spawn_callback(self.to_do.pop())
             if procinfo is not None:
                 self.running_procs.append(procinfo)
                 self.avail_slots -= 1
+        return(len(self.to_do) == 0)
 
+    def _check_running_procs(self) -> bool:
         for procinfo in self.running_procs:
             retcode = procinfo.proc_o.proc.poll()
             if retcode is not None:
                 self.running_procs.remove(procinfo)
                 self.avail_slots += 1
-                self.finish(procinfo)
+                self.finish_callback(procinfo)
+        return(len(self.running_procs) == 0)
 
-        return ((len(self.to_do) == 0) and (len(self.running_procs) == 0))
+    def run(self) -> bool:
+        s = self._spawn()
+        c = self._check_running_procs()
+        return(s and c)
 
 
 class Msgs:
