@@ -216,7 +216,9 @@ class Downloads:
             line = i.strip()
             if not line:
                 continue
-            if line.startswith("http://"):
+            elif line.startswith('#'):
+                continue
+            elif line.startswith("http://"):
                 retlist.append(Fileinfo(line, Rtypes.HTTP))
             else:
                 retlist.append(Fileinfo(line, Rtypes.RTMP))
