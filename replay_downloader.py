@@ -251,7 +251,7 @@ class Downloads:
             print(str(e), file=sys.stderr)
 
     @staticmethod
-    def get_replay_list(replay_type: int, conf: Config, outfile: str):
+    def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
         def _get_session(desc):
             if (conf.AUTH.login == '') or (conf.AUTH.password == ''):
                 raise ValueError('Login or password are not configured')
@@ -279,8 +279,12 @@ class Downloads:
         if (outfile == '-'):
             _get_session(sys.stdout)
         else:
-            with open(outfile, 'w') as f:
-                _get_session(f)
+            if append is True:
+                with open(outfile, 'a') as f:
+                    _get_session(f)
+            else:
+                with open(outfile, 'w') as f:
+                    _get_session(f)
 
     def spawn(self, file_info: Fileinfo) -> Procinfo:
         remote_file_name = file_info.path
@@ -423,9 +427,11 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--config-file', metavar='FILE',
                         help='configuration file', default='None')
     parser.add_argument('-l', '--get-avail', metavar='FILE',
-                        help='print list of remote files', default='None')
+                        help='get list of remote files', default='None')
     parser.add_argument('-k', '--get-avail-mobile', metavar='FILE',
-                        help='print list of remote files from mobile replay', default='None')
+                        help='get list of remote files from mobile replay', default='None')
+    parser.add_argument('-a', '--append', action='store_true',
+                        help='append new list of remote files to existing file')
     parser.add_argument('-g', '--get-list', metavar='FILE',
                         help='download all files on list', default='None')
     parser.add_argument('-f', '--download-file', metavar='REMOTE_FILE_NAME',
@@ -469,10 +475,10 @@ if __name__ == "__main__":
     conf = Config(config_file)
 
     if (args.get_avail is not 'None'):
-        Downloads.get_replay_list(Rtypes.RTMP, conf, args.get_avail)
+        Downloads.get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
         sys.exit(retval)
     if (args.get_avail_mobile is not 'None'):
-        Downloads.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile)
+        Downloads.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
         sys.exit(retval)
 
     msg = Msgs()
