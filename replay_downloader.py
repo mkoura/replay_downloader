@@ -480,6 +480,11 @@ if __name__ == "__main__":
     elif (args.get_avail_mobile is not None):
         Downloads.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
         sys.exit(retval)
+    elif (args.append is True):
+        parser.print_help()
+        print("\n-a (--append) allowed only in combination with -l (--get-avail) " +
+              "and -k (--get-avail-mobile)", file=sys.stderr)
+        sys.exit(1)
 
     msg = Msgs()
     msg.init_log(args.logfile)
