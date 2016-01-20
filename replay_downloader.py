@@ -133,7 +133,7 @@ class Msgs:
         self.decoding_skipped = self.MsgList()
         self.decoding_failed = self.MsgList()
         self.errors = self.MsgList()
-        self.logfile = 'None'
+        self.logfile = None
 
     @staticmethod
     def print_dummy():
@@ -166,7 +166,7 @@ class Msgs:
         _print('S', self.decoding_skipped)
 
     def init_log(self, logfile: str):
-        if logfile is 'None':
+        if logfile is None:
             return
 
         try:
@@ -176,7 +176,7 @@ class Msgs:
             print(str(e), file=sys.stderr)
 
     def logit(self, message: str, method=logging.info):
-        if self.logfile is 'None':
+        if self.logfile is None:
             return
 
         try:
@@ -425,23 +425,23 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config-file', metavar='FILE',
-                        help='configuration file', default='None')
+                        help='configuration file')
     parser.add_argument('-l', '--get-avail', metavar='FILE',
-                        help='get list of remote files', default='None')
+                        help='get list of remote files')
     parser.add_argument('-k', '--get-avail-mobile', metavar='FILE',
-                        help='get list of remote files from mobile replay', default='None')
+                        help='get list of remote files from mobile replay')
     parser.add_argument('-a', '--append', action='store_true',
                         help='append new list of remote files to existing file')
     parser.add_argument('-g', '--get-list', metavar='FILE',
-                        help='download all files on list', default='None')
+                        help='download all files on list')
     parser.add_argument('-f', '--download-file', metavar='REMOTE_FILE_NAME',
-                        help='download remote file', default='None')
+                        help='download remote file')
     parser.add_argument('-p', '--concurrent', metavar='NUM', type=int,
                         help='number of concurrent downloads', default='-1')
     parser.add_argument('-d', '--destination', metavar='DIR',
                         help='destination directory for decoded files', default='')
     parser.add_argument('-m', '--logfile', metavar='FILE',
-                        help='log file', default='None')
+                        help='log file')
     parser.add_argument('-b', '--brief', help='less verbose output', action='store_true')
     parser.add_argument('-q', '--quiet', help='even less verbose output', action='store_true')
     args = parser.parse_args()
@@ -450,7 +450,7 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
 
-    if (args.config_file is not 'None'):
+    if (args.config_file is not None):
         cflist = (args.config_file)
     else:
         cflist = ('replay_downloader.ini',
@@ -466,7 +466,7 @@ if __name__ == "__main__":
             pass
 
     if config_file == '':
-        if (args.config_file is not 'None'):
+        if (args.config_file is not None):
             print("Error: cannot open config file '" + args.config_file + "'", file=sys.stderr)
         else:
             print("Error: no config file found.", file=sys.stderr)
@@ -474,19 +474,19 @@ if __name__ == "__main__":
 
     conf = Config(config_file)
 
-    if (args.get_avail is not 'None'):
+    if (args.get_avail is not None):
         Downloads.get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
         sys.exit(retval)
-    if (args.get_avail_mobile is not 'None'):
+    elif (args.get_avail_mobile is not None):
         Downloads.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
         sys.exit(retval)
 
     msg = Msgs()
     msg.init_log(args.logfile)
 
-    if (args.get_list is not 'None'):
+    if (args.get_list is not None):
         downloads_list = Downloads.get_list_from_file(args.get_list)
-    elif (args.download_file is not 'None'):
+    elif (args.download_file is not None):
         downloads_list = [args.download_file]
 
     downloads = Downloads(msg, conf)
