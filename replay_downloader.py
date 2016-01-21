@@ -328,10 +328,10 @@ class Downloads:
         retcode = proc.poll()
         (out, err) = proc.communicate()
         if out:
-            self.msg.logit("* Downloading of " + filepath + ":")
+            self.msg.logit("[download] stdout for " + filepath + ":")
             self.msg.logit(out.decode('utf-8'))
         if err:
-            self.msg.logit("* Error output while downloading " + filepath + ":",
+            self.msg.logit("[download] stderr for " + filepath + ":",
                            logging.error)
             self.msg.logit(err.decode('utf-8'), logging.error)
         # "Download may be incomplete (downloaded about 99.50%), try resuming"
@@ -347,7 +347,7 @@ class Downloads:
         else:
             try:
                 os.rename(filepath, filepath + ".part")
-                self.msg.logit("* Renamed to " + filepath + ".part", logging.error)
+                self.msg.logit("[rename] " + filepath + ".part", logging.error)
             except FileNotFoundError as e:
                 self.msg.errors.add(str(e))
             self.msg.download_failed.add("" + filepath)
@@ -400,10 +400,10 @@ class Decodings:
         retcode = proc.poll()
         (out, err) = proc.communicate()
         if out:
-            self.msg.logit("* Decoding of " + filepath + ":")
+            self.msg.logit("[decode] stdout for " + filepath + ":")
             self.msg.logit(out.decode('utf-8'))
         if err:
-            self.msg.logit("* Error output while decoding " + filepath + ":", logging.error)
+            self.msg.logit("[decode] stderr for " + filepath + ":", logging.error)
             self.msg.logit(err.decode('utf-8'), logging.error)
         if (retcode == 0):
             self.msg.decoding_finished.add("" + filepath)
@@ -411,7 +411,7 @@ class Decodings:
         else:
             try:
                 os.remove(filepath)
-                self.msg.logit("* " + filepath + " deleted", logging.error)
+                self.msg.logit("[delete] " + filepath, logging.error)
             except FileNotFoundError as e:
                 self.msg.errors.add(str(e))
             self.msg.decoding_failed.add("" + filepath)
