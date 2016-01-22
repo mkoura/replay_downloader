@@ -161,7 +161,7 @@ class Msgs:
         _print('F', self.download_failed)
         _print('F', self.decoding_failed)
         _print('.', self.download)
-        _print('#', self.decode)
+        _print('+', self.decode)
         _print('S', self.download_skipped)
         _print('S', self.decoding_skipped)
 
