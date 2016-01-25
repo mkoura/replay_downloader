@@ -14,6 +14,7 @@ class TestDownloads(unittest.TestCase):
 
     def test_set_destdir(self):
         msg = rd.Msgs()
+        os.chdir(os.path.dirname(__file__))
         conf = rd.Config('test.ini')
         downloads = rd.Downloads(msg, conf)
         destdir = 'destdir'
@@ -26,3 +27,16 @@ class TestDownloads(unittest.TestCase):
         except OSError:
             if os.path.isdir(destdir):
                 raise
+
+    def test_get_list_from_file(self):
+        os.chdir(os.path.dirname(__file__))
+        self.assertEqual(rd.Downloads.get_list_from_file('test_replay_list'),
+                         ['20151205_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3',
+                          '20151205_TS_ChNN_Atiyoga_Teachings_Tashigar_South_es.mp3',
+                          '20151206_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3',
+                          '20151206_TS_ChNN_Atiyoga_Teachings_Tashigar_South_es.mp3',
+                          '',
+                          '# TEST',
+                          '20151207_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3',
+                          '20151207_TS_ChNN_Atiyoga_Teachings_Tashigar_South_es_parcial.mp3',
+                          '20151208_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3'])
