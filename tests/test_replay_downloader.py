@@ -14,8 +14,7 @@ class TestDownloads(unittest.TestCase):
 
     def test_set_destdir(self):
         msg = rd.Msgs()
-        os.chdir(os.path.dirname(__file__))
-        conf = rd.Config('test.ini')
+        conf = rd.Config('/dev/null')
         downloads = rd.Downloads(msg, conf)
         destdir = 'destdir'
 
@@ -40,3 +39,40 @@ class TestDownloads(unittest.TestCase):
                           '20151207_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3',
                           '20151207_TS_ChNN_Atiyoga_Teachings_Tashigar_South_es_parcial.mp3',
                           '20151208_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3'])
+
+    def test_spawn_rtmp(self):
+        msg = rd.Msgs()
+        conf = rd.Config('/dev/null')
+        conf.COMMANDS.rtmpdump = '/bin/true'
+        downloads = rd.Downloads(msg, conf)
+
+        proc = downloads.spawn(rd.Fileinfo('foo', rd.Rtypes.RTMP))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, 'foo.flv', rd.Ftypes.FLV))
+
+    def test_spawn_http(self):
+        msg = rd.Msgs()
+        conf = rd.Config('/dev/null')
+        conf.COMMANDS.rtmpdump = '/bin/true'
+        downloads = rd.Downloads(msg, conf)
+
+        proc = downloads.spawn(rd.Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8', rd.Rtypes.HTTP))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp4', rd.Ftypes.MP4))
+
+    def test_spawn_unknown_type(self):
+        msg = rd.Msgs()
+        conf = rd.Config('/dev/null')
+        conf.COMMANDS.rtmpdump = '/bin/true'
+        downloads = rd.Downloads(msg, conf)
+
+        ret = downloads.spawn(rd.Fileinfo('foo', 20))
+        self.assertEqual(ret, None)
+
+    def test_spawn_file_exists(self):
+        msg = rd.Msgs()
+        conf = rd.Config('/dev/null')
+        conf.COMMANDS.rtmpdump = '/bin/true'
+        downloads = rd.Downloads(msg, conf)
+
+        os.chdir(os.path.dirname(__file__))
+        ret = downloads.spawn(rd.Fileinfo('existing_file', rd.Rtypes.RTMP))
+        self.assertEqual(ret, None)
