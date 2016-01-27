@@ -89,6 +89,7 @@ class Scheduler:
             if procinfo is not None:
                 self.running_procs.append(procinfo)
                 self.avail_slots -= 1
+
         return(len(self.to_do) == 0)
 
     def _check_running_procs(self) -> bool:
@@ -98,6 +99,7 @@ class Scheduler:
                 self.running_procs.remove(procinfo)
                 self.avail_slots += 1
                 self.finish_callback(procinfo)
+
         return(len(self.running_procs) == 0)
 
     def run(self) -> bool:
@@ -228,6 +230,7 @@ class Downloads:
                 retlist.append(Fileinfo(line, Rtypes.HTTP))
             else:
                 retlist.append(Fileinfo(line, Rtypes.RTMP))
+
         return retlist
 
     def set_destdir(self, destdir: str):
@@ -318,6 +321,7 @@ class Downloads:
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             self.msg.download.add("" + res_file)
             proc = Proc(p)
+
         return Procinfo(proc, res_file, res_type)
 
     def finished_handler(self, procinfo: Procinfo):
@@ -326,6 +330,7 @@ class Downloads:
         filetype = procinfo.type
         proc = proc_o.proc
         retcode = proc.poll()
+
         (out, err) = proc.communicate()
         if out:
             self.msg.logit("[download] stdout for " + filepath + ":")
@@ -334,13 +339,15 @@ class Downloads:
             self.msg.logit("[download] stderr for " + filepath + ":",
                            logging.error)
             self.msg.logit(err.decode('utf-8'), logging.error)
+
         # "Download may be incomplete (downloaded about 99.50%), try resuming"
-        if (retcode == 2):
+        if (retcode == 2) and (filetype == Ftypes.FLV):
             for each_line in err.decode('utf-8').splitlines():
                 m = re.search(r'\(downloaded about 99\.[0-9]+%\),', each_line)
                 if m:
                     retcode = 0
                     break
+
         if (retcode == 0):
             self.msg.download_finished.add("" + filepath)
             self.finished_ready.append(Fileinfo(filepath, filetype))
@@ -390,6 +397,7 @@ class Decodings:
                       stdout=PIPE, stderr=PIPE)
             self.msg.decode.add("" + res_file)
             proc = Proc(p)
+
         return Procinfo(proc, res_file, Ftypes.MP3)
 
     def finished_handler(self, procinfo: Procinfo):
@@ -398,6 +406,7 @@ class Decodings:
         filetype = procinfo.type
         proc = proc_o.proc
         retcode = proc.poll()
+
         (out, err) = proc.communicate()
         if out:
             self.msg.logit("[decode] stdout for " + filepath + ":")
@@ -405,6 +414,7 @@ class Decodings:
         if err:
             self.msg.logit("[decode] stderr for " + filepath + ":", logging.error)
             self.msg.logit(err.decode('utf-8'), logging.error)
+
         if (retcode == 0):
             self.msg.decoding_finished.add("" + filepath)
             self.finished_ready.append((filepath, filetype))
