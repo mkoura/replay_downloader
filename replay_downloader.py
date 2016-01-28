@@ -210,7 +210,7 @@ class Proc:
         self.proc = proc
 
 
-class Downloads:
+class Download:
     def __init__(self, msg: Msgs, conf: Config):
         self.msg = msg
         self.conf = conf
@@ -361,7 +361,7 @@ class Downloads:
             self.msg.errors.add("Error downloading " + filepath + ": " + err.decode('utf-8'))
 
 
-class Decodings:
+class Decode:
     def __init__(self, msg: Msgs, conf: Config):
         self.msg = msg
         self.conf = conf
@@ -485,10 +485,10 @@ if __name__ == "__main__":
     conf = Config(config_file)
 
     if (args.get_avail is not None):
-        Downloads.get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
+        Download.get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
         sys.exit(retval)
     elif (args.get_avail_mobile is not None):
-        Downloads.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
+        Download.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
         sys.exit(retval)
     elif (args.append is True):
         parser.print_help()
@@ -500,18 +500,18 @@ if __name__ == "__main__":
     msg.init_log(args.logfile)
 
     if (args.get_list is not None):
-        downloads_list = Downloads.get_list_from_file(args.get_list)
+        downloads_list = Download.get_list_from_file(args.get_list)
     elif (args.download_file is not None):
         downloads_list = [args.download_file]
 
-    downloads = Downloads(msg, conf)
-    to_download = Downloads.parse_downloads_list(downloads_list)
+    downloads = Download(msg, conf)
+    to_download = Download.parse_downloads_list(downloads_list)
     downloads_scheduler = Scheduler(downloads.spawn, downloads.finished_handler,
                                     to_download)
     downloads_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.getint('DEFAULT', 'concurrency')
 
-    decodings = Decodings(msg, conf)
+    decodings = Decode(msg, conf)
     decodings.set_destdir(args.destination)
     decodings_scheduler = Scheduler(decodings.spawn,
                                     decodings.finished_handler,
