@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# encoding: utf-8
+
 import unittest
 import os
 import replay_downloader as rd
