@@ -86,4 +86,4 @@ class TestDownloads(unittest.TestCase):
         ret = downloads.finished_handler(proc)
         self.assertEqual(ret, 0)
         self.assertEqual(downloads.msg.download_finished.msglist[0][0], 'foo.flv')
-        self.assertEqual(downloads.finished_ready[0], rd.Fileinfo('foo.flv', rd.Rtypes.RTMP))
+        self.assertEqual(downloads.finished_ready[0], rd.Fileinfo('foo.flv', rd.Ftypes.FLV))
