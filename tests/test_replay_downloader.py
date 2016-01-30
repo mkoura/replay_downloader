@@ -3,6 +3,7 @@
 
 import unittest
 import os
+import time
 import replay_downloader as rd
 
 
@@ -43,15 +44,6 @@ class TestDownloads(unittest.TestCase):
                           '20151207_TS_ChNN_Atiyoga_Teachings_Tashigar_South_es_parcial.mp3',
                           '20151208_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3'])
 
-    def test_spawn_rtmp(self):
-        msg = rd.Msgs()
-        conf = rd.Config('/dev/null')
-        conf.COMMANDS.rtmpdump = '/bin/true'
-        downloads = rd.Download(msg, conf)
-
-        proc = downloads.spawn(rd.Fileinfo('foo', rd.Rtypes.RTMP))
-        self.assertEqual(proc, rd.Procinfo(proc.proc_o, 'foo.flv', rd.Ftypes.FLV))
-
     def test_spawn_http(self):
         msg = rd.Msgs()
         conf = rd.Config('/dev/null')
@@ -79,3 +71,19 @@ class TestDownloads(unittest.TestCase):
         os.chdir(os.path.dirname(__file__))
         ret = downloads.spawn(rd.Fileinfo('existing_file', rd.Rtypes.RTMP))
         self.assertEqual(ret, None)
+
+    def test_finished_rtmp(self):
+        msg = rd.Msgs()
+        conf = rd.Config('/dev/null')
+        conf.COMMANDS.rtmpdump = '/bin/true'
+        downloads = rd.Download(msg, conf)
+
+        proc = downloads.spawn(rd.Fileinfo('foo', rd.Rtypes.RTMP))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, 'foo.flv', rd.Ftypes.FLV))
+        while (proc.proc_o.proc.poll() is None):
+            time.sleep(0.05)
+
+        ret = downloads.finished_handler(proc)
+        self.assertEqual(ret, 0)
+        self.assertEqual(downloads.msg.download_finished.msglist[0][0], 'foo.flv')
+        self.assertEqual(downloads.finished_ready[0], rd.Fileinfo('foo.flv', rd.Rtypes.RTMP))

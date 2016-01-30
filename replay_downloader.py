@@ -324,7 +324,7 @@ class Download:
 
         return Procinfo(proc, res_file, res_type)
 
-    def finished_handler(self, procinfo: Procinfo):
+    def finished_handler(self, procinfo: Procinfo) -> int:
         proc_o = procinfo.proc_o
         filepath = procinfo.path
         filetype = procinfo.type
@@ -359,6 +359,8 @@ class Download:
                 self.msg.errors.add(str(e))
             self.msg.download_failed.add("" + filepath)
             self.msg.errors.add("Error downloading " + filepath + ": " + err.decode('utf-8'))
+
+        return retcode
 
 
 class Decode:
@@ -400,7 +402,7 @@ class Decode:
 
         return Procinfo(proc, res_file, Ftypes.MP3)
 
-    def finished_handler(self, procinfo: Procinfo):
+    def finished_handler(self, procinfo: Procinfo) -> int:
         proc_o = procinfo.proc_o
         filepath = procinfo.path
         filetype = procinfo.type
@@ -426,6 +428,8 @@ class Decode:
                 self.msg.errors.add(str(e))
             self.msg.decoding_failed.add("" + filepath)
             self.msg.errors.add("Error decoding " + filepath + ": " + err.decode('utf-8'))
+
+        return retcode
 
 
 if __name__ == "__main__":
