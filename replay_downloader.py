@@ -419,7 +419,7 @@ class Decode:
 
         if (retcode == 0):
             self.msg.decoding_finished.add("" + filepath)
-            self.finished_ready.append((filepath, filetype))
+            self.finished_ready.append(Fileinfo(filepath, filetype))
         else:
             try:
                 os.remove(filepath)
