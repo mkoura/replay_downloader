@@ -110,9 +110,10 @@ class Scheduler:
 
 class Msgs:
     class MsgList:
-        def __init__(self):
+        def __init__(self, text=''):
             self.msglist = []
             self.tstamp = 0
+            self.text = text
 
         def update_tstamp(self):
             self.tstamp = time.time()
@@ -126,14 +127,14 @@ class Msgs:
             return retlist
 
     def __init__(self):
-        self.download = self.MsgList()
-        self.decode = self.MsgList()
-        self.download_finished = self.MsgList()
-        self.download_skipped = self.MsgList()
-        self.download_failed = self.MsgList()
-        self.decoding_finished = self.MsgList()
-        self.decoding_skipped = self.MsgList()
-        self.decoding_failed = self.MsgList()
+        self.download = self.MsgList("Downloading")
+        self.decode = self.MsgList("Decoding")
+        self.download_finished = self.MsgList("Downloaded")
+        self.download_skipped = self.MsgList("Skipped download of")
+        self.download_failed = self.MsgList("Failed to download")
+        self.decoding_finished = self.MsgList("Decoded")
+        self.decoding_skipped = self.MsgList("Skipped decoding of")
+        self.decoding_failed = self.MsgList("Failed to decode")
         self.errors = self.MsgList()
         self.logfile = None
 
@@ -142,17 +143,17 @@ class Msgs:
         pass
 
     @staticmethod
-    def _print_new(text, msglist, out=sys.stdout):
+    def _print_new(msglist, out=sys.stdout):
         for msg in msglist.get_new():
-            print("" + text + msg, file=out)
+            print("" + msglist.text + " " + msg, file=out)
 
     def print_errors(self):
-        self._print_new("", self.errors, sys.stderr)
+        self._print_new(self.errors, sys.stderr)
 
     def print(self):
         self.print_errors()
-        self._print_new("Downloading ", self.download)
-        self._print_new("Decoding ", self.decode)
+        self._print_new(self.download)
+        self._print_new(self.decode)
 
     def print_dots(self):
         def _print(sym, msglist):
@@ -188,21 +189,21 @@ class Msgs:
             print(str(e), file=sys.stderr)
 
     def print_summary(self):
-        def _print(text, li):
+        def _print(li):
             num = len(li.msglist)
             if (num > 0):
-                print("" + text + " " + str(num) + " file(s):")
+                print("" + li.text + " " + str(num) + " file(s):")
                 for f in li.msglist:
                     print("    " + f[0])
 
         print("")
 
-        _print("Downloaded", self.download_finished)
-        _print("Decoded", self.decoding_finished)
-        _print("Failed to download", self.download_failed)
-        _print("Failed to decode", self.decoding_failed)
-        _print("Skipped download of", self.download_skipped)
-        _print("Skipped decoding of", self.decoding_skipped)
+        _print(self.download_finished)
+        _print(self.decoding_finished)
+        _print(self.download_failed)
+        _print(self.decoding_failed)
+        _print(self.download_skipped)
+        _print(self.decoding_skipped)
 
 
 class Proc:
