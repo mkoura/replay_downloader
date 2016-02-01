@@ -75,6 +75,32 @@ class Config:
         self.getint = self.cfg.getint
 
 
+class Log:
+    logfile = None
+
+    @staticmethod
+    def init(logfile: str):
+        if logfile is None:
+            return
+
+        try:
+            logging.basicConfig(filename=logfile, level=logging.DEBUG)
+            Log.logfile = logfile
+        except EnvironmentError as e:
+            print(str(e), file=sys.stderr)
+
+    @staticmethod
+    def logit(message: str, method=logging.info):
+        if Log.logfile is None:
+            return
+
+        try:
+            for each_line in message.splitlines():
+                method("" + each_line)
+        except EnvironmentError as e:
+            print(str(e), file=sys.stderr)
+
+
 class Scheduler:
     def __init__(self, spawn_callback, finish_callback, to_do: list):
         self.avail_slots = 3
@@ -108,52 +134,49 @@ class Scheduler:
         return(s and c)
 
 
+class MsgList:
+    def __init__(self, text=''):
+        self.msglist = []
+        self.tstamp = 0
+        self.text = text
+
+    def update_tstamp(self):
+        self.tstamp = time.time()
+
+    def add(self, message: str):
+        self.msglist.append((message, time.time()))
+
+    def erase(self):
+        del self.msglist[:]
+
+    def get_new(self) -> list:
+        retlist = [msg[0] for msg in self.msglist if msg[1] >= self.tstamp]
+        self.update_tstamp()
+        return retlist
+
+
 class Msgs:
-    class MsgList:
-        def __init__(self, text=''):
-            self.msglist = []
-            self.tstamp = 0
-            self.text = text
-
-        def update_tstamp(self):
-            self.tstamp = time.time()
-
-        def add(self, message: str):
-            self.msglist.append((message, time.time()))
-
-        def get_new(self) -> list:
-            retlist = [msg[0] for msg in self.msglist if msg[1] >= self.tstamp]
-            self.update_tstamp()
-            return retlist
-
     def __init__(self):
-        self.download = self.MsgList("Downloading")
-        self.decode = self.MsgList("Decoding")
-        self.download_finished = self.MsgList("Downloaded")
-        self.download_skipped = self.MsgList("Skipped download of")
-        self.download_failed = self.MsgList("Failed to download")
-        self.decoding_finished = self.MsgList("Decoded")
-        self.decoding_skipped = self.MsgList("Skipped decoding of")
-        self.decoding_failed = self.MsgList("Failed to decode")
-        self.errors = self.MsgList()
-        self.logfile = None
+        self.outlist = []
 
     @staticmethod
     def print_dummy():
         pass
 
-    @staticmethod
-    def _print_new(msglist, out=sys.stdout):
-        for msg in msglist.get_new():
-            print("" + msglist.text + " " + msg, file=out)
+    def _get_log_key(self, key):
+        return [d[key] for d in self.outlist if key in d]
+
+    def _print_new(self, key, out=sys.stdout):
+        for msglist in self._get_log_key(key):
+            for msg in msglist.get_new():
+                print("" + msglist.text + " " + msg, file=out)
 
     def print_errors(self):
-        self._print_new(self.errors, sys.stderr)
+        self._print_new('errors', sys.stderr)
 
     def print(self):
         self.print_errors()
-        self._print_new(self.download)
-        self._print_new(self.decode)
+        self._print_new('active')
 
     def print_dots(self):
         def _print(sym, msglist):
@@ -161,49 +184,33 @@ class Msgs:
                 print(sym, end="")
                 sys.stdout.flush()
 
-        _print('F', self.download_failed)
-        _print('F', self.decoding_failed)
-        _print('.', self.download)
-        _print('+', self.decode)
-        _print('S', self.download_skipped)
-        _print('S', self.decoding_skipped)
+        for i in self._get_log_key('failed'):
+            _print('F', i)
 
-    def init_log(self, logfile: str):
-        if logfile is None:
-            return
+        syms = ['.', '+', '*', '#']
+        slen = len(syms)
+        num = 0
+        for i in self._get_log_key('active'):
+            _print(syms[num % slen], i)
+            num += 1
 
-        try:
-            logging.basicConfig(filename=logfile, level=logging.DEBUG)
-            self.logfile = logfile
-        except EnvironmentError as e:
-            print(str(e), file=sys.stderr)
-
-    def logit(self, message: str, method=logging.info):
-        if self.logfile is None:
-            return
-
-        try:
-            for each_line in message.splitlines():
-                method("" + each_line)
-        except EnvironmentError as e:
-            print(str(e), file=sys.stderr)
+        for i in self._get_log_key('skipped'):
+            _print('S', i)
 
     def print_summary(self):
-        def _print(li):
-            num = len(li.msglist)
-            if (num > 0):
-                print("" + li.text + " " + str(num) + " file(s):")
-                for f in li.msglist:
-                    print("    " + f[0])
+        def _print(key):
+            for li in self._get_log_key(key):
+                num = len(li.msglist)
+                if (num > 0):
+                    print("" + li.text + " " + str(num) + " file(s):")
+                    for f in li.msglist:
+                        print("    " + f[0])
 
         print("")
 
-        _print(self.download_finished)
-        _print(self.decoding_finished)
-        _print(self.download_failed)
-        _print(self.decoding_failed)
-        _print(self.download_skipped)
-        _print(self.decoding_skipped)
+        _print('finished')
+        _print('failed')
+        _print('skipped')
 
 
 class Proc:
@@ -212,9 +219,13 @@ class Proc:
 
 
 class Download:
-    def __init__(self, msg: Msgs, conf: Config):
-        self.msg = msg
+    def __init__(self, conf: Config):
         self.conf = conf
+        self.out = {'active': MsgList("Downloading"),
+                    'finished': MsgList("Downloaded"),
+                    'skipped': MsgList("Skipped download of"),
+                    'failed': MsgList("Failed to download"),
+                    'errors': MsgList()}
         self.destination = ''
         self.finished_ready = []
 
@@ -310,17 +321,17 @@ class Download:
             command = [self.conf.COMMANDS.ffmpeg, "-i",
                        remote_file_name, "-c", "copy", res_file]
         else:
-            self.msg.errors.add("Unrecognized download type for " + remote_file_name)
+            self.out['errors'].add("Unrecognized download type for " + remote_file_name)
             return None
 
         if os.path.isfile(res_file):
-            self.msg.errors.add("WARNING: skipping download, file exists: " + res_file)
-            self.msg.download_skipped.add("" + res_file)
+            self.out['errors'].add("WARNING: skipping download, file exists: " + res_file)
+            self.out['skipped'].add("" + res_file)
             self.finished_ready.append((res_file, res_type))
             return None
         else:
             p = Popen(command, stdout=PIPE, stderr=PIPE)
-            self.msg.download.add("" + res_file)
+            self.out['active'].add("" + res_file)
             proc = Proc(p)
 
         return Procinfo(proc, res_file, res_type)
@@ -334,12 +345,11 @@ class Download:
 
         (out, err) = proc.communicate()
         if out:
-            self.msg.logit("[download] stdout for " + filepath + ":")
-            self.msg.logit(out.decode('utf-8'))
+            Log.logit("[download] stdout for " + filepath + ":")
+            Log.logit(out.decode('utf-8'))
         if err:
-            self.msg.logit("[download] stderr for " + filepath + ":",
-                           logging.error)
-            self.msg.logit(err.decode('utf-8'), logging.error)
+            Log.logit("[download] stderr for " + filepath + ":", logging.error)
+            Log.logit(err.decode('utf-8'), logging.error)
 
         # "Download may be incomplete (downloaded about 99.50%), try resuming"
         if (retcode == 2) and (filetype == Ftypes.FLV):
@@ -350,24 +360,28 @@ class Download:
                     break
 
         if (retcode == 0):
-            self.msg.download_finished.add("" + filepath)
+            self.out['finished'].add("" + filepath)
             self.finished_ready.append(Fileinfo(filepath, filetype))
         else:
             try:
                 os.rename(filepath, filepath + ".part")
-                self.msg.logit("[rename] " + filepath + ".part", logging.error)
+                Log.logit("[rename] " + filepath + ".part", logging.error)
             except FileNotFoundError as e:
-                self.msg.errors.add(str(e))
-            self.msg.download_failed.add("" + filepath)
-            self.msg.errors.add("Error downloading " + filepath + ": " + err.decode('utf-8'))
+                self.out['errors'].add(str(e))
+            self.out['failed'].add("" + filepath)
+            self.out['errors'].add("Error downloading " + filepath + ": " + err.decode('utf-8'))
 
         return retcode
 
 
 class Decode:
-    def __init__(self, msg: Msgs, conf: Config):
-        self.msg = msg
+    def __init__(self, conf: Config):
         self.conf = conf
+        self.out = {'active': MsgList("Decoding"),
+                    'finished': MsgList("Decoded"),
+                    'skipped': MsgList("Skipped decoding of"),
+                    'failed': MsgList("Failed to decode"),
+                    'errors': MsgList()}
         self.destination = ''
         self.finished_ready = []
 
@@ -391,14 +405,14 @@ class Decode:
         if (file_type is not Ftypes.FLV):
             return None
         elif os.path.isfile(res_file):
-            self.msg.errors.add("WARNING: skipping decoding, file exists: " + res_file)
-            self.msg.decoding_skipped.add("" + res_file)
+            self.out['errors'].add("WARNING: skipping decoding, file exists: " + res_file)
+            self.out['skipped'].add("" + res_file)
             return None
         else:
             p = Popen([self.conf.COMMANDS.ffmpeg, "-i",
                       local_file_name, "-vn", "-acodec", "copy", res_file],
                       stdout=PIPE, stderr=PIPE)
-            self.msg.decode.add("" + res_file)
+            self.out['active'].add("" + res_file)
             proc = Proc(p)
 
         return Procinfo(proc, res_file, Ftypes.MP3)
@@ -412,23 +426,23 @@ class Decode:
 
         (out, err) = proc.communicate()
         if out:
-            self.msg.logit("[decode] stdout for " + filepath + ":")
-            self.msg.logit(out.decode('utf-8'))
+            Log.logit("[decode] stdout for " + filepath + ":")
+            Log.logit(out.decode('utf-8'))
         if err:
-            self.msg.logit("[decode] stderr for " + filepath + ":", logging.error)
-            self.msg.logit(err.decode('utf-8'), logging.error)
+            Log.logit("[decode] stderr for " + filepath + ":", logging.error)
+            Log.logit(err.decode('utf-8'), logging.error)
 
         if (retcode == 0):
-            self.msg.decoding_finished.add("" + filepath)
+            self.out['finished'].add("" + filepath)
             self.finished_ready.append(Fileinfo(filepath, filetype))
         else:
             try:
                 os.remove(filepath)
-                self.msg.logit("[delete] " + filepath, logging.error)
+                Log.logit("[delete] " + filepath, logging.error)
             except FileNotFoundError as e:
-                self.msg.errors.add(str(e))
-            self.msg.decoding_failed.add("" + filepath)
-            self.msg.errors.add("Error decoding " + filepath + ": " + err.decode('utf-8'))
+                self.out['errors'].add(str(e))
+            self.out['failed'].add("" + filepath)
+            self.out['errors'].add("Error decoding " + filepath + ": " + err.decode('utf-8'))
 
         return retcode
 
@@ -502,27 +516,29 @@ if __name__ == "__main__":
         sys.exit(1)
 
     msg = Msgs()
-    msg.init_log(args.logfile)
+    Log.init(args.logfile)
 
     if (args.get_list is not None):
         downloads_list = Download.get_list_from_file(args.get_list)
     elif (args.download_file is not None):
         downloads_list = [args.download_file]
 
-    downloads = Download(msg, conf)
+    downloads = Download(conf)
     to_download = Download.parse_downloads_list(downloads_list)
     downloads_scheduler = Scheduler(downloads.spawn, downloads.finished_handler,
                                     to_download)
     downloads_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.getint('DEFAULT', 'concurrency')
+    msg.outlist.append(downloads.out)
 
-    decodings = Decode(msg, conf)
+    decodings = Decode(conf)
     decodings.set_destdir(args.destination)
     decodings_scheduler = Scheduler(decodings.spawn,
                                     decodings.finished_handler,
                                     downloads.finished_ready)
     decodings_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.getint('DEFAULT', 'concurrency')
+    msg.outlist.append(decodings.out)
 
     if (args.brief):
         msg_handler = msg.print_dots
@@ -544,9 +560,11 @@ if __name__ == "__main__":
         if not args.quiet:
             msg.print_summary()
 
-        if ((len(msg.download_failed.msglist) > 0) or (len(msg.decoding_failed.msglist) > 0)):
+        if ((len(downloads.out['failed'].msglist) > 0)
+                or (len(decodings.out['failed'].msglist) > 0)):
             retval = 1
-        elif ((len(msg.download_skipped.msglist) > 0) or (len(msg.decoding_skipped.msglist) > 0)):
+        elif ((len(downloads.out['skipped'].msglist) > 0)
+                or (len(decodings.out['skipped'].msglist) > 0)):
             retval = 2
     except KeyboardInterrupt:
         print(" Interrupting running processes...")
