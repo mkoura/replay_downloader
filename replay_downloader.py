@@ -75,32 +75,6 @@ class Config:
         self.getint = self.cfg.getint
 
 
-class Log:
-    logfile = None
-
-    @staticmethod
-    def init(logfile: str):
-        if logfile is None:
-            return
-
-        try:
-            logging.basicConfig(filename=logfile, level=logging.DEBUG)
-            Log.logfile = logfile
-        except EnvironmentError as e:
-            print(str(e), file=sys.stderr)
-
-    @staticmethod
-    def logit(message: str, method=logging.info):
-        if Log.logfile is None:
-            return
-
-        try:
-            for each_line in message.splitlines():
-                method("" + each_line)
-        except EnvironmentError as e:
-            print(str(e), file=sys.stderr)
-
-
 class Scheduler:
     def __init__(self, spawn_callback, finish_callback, to_do: list):
         self.avail_slots = 3
@@ -265,42 +239,6 @@ class Download:
         except EnvironmentError as e:
             print(str(e), file=sys.stderr)
 
-    @staticmethod
-    def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
-        def _get_session(desc):
-            if (conf.AUTH.login == '') or (conf.AUTH.password == ''):
-                raise ValueError('Login or password are not configured')
-
-            payload = {
-                'login': conf.AUTH.login,
-                'password': conf.AUTH.password
-            }
-
-            if replay_type == Rtypes.RTMP:
-                conf_section = conf.RTMP
-            elif replay_type == Rtypes.HTTP:
-                conf_section = conf.HTTP
-            else:
-                raise ValueError("Unrecognized replay type")
-
-            with session() as c:
-                c.post(conf_section.login_url, data=payload)
-                response = c.get(conf_section.replay_url)
-                for each_line in response.text.splitlines():
-                    m = re.search(conf_section.list_regex, each_line)
-                    if m:
-                        print(m.group(1), file=desc)
-
-        if (outfile == '-'):
-            _get_session(sys.stdout)
-        else:
-            if append is True:
-                with open(outfile, 'a') as f:
-                    _get_session(f)
-            else:
-                with open(outfile, 'w') as f:
-                    _get_session(f)
-
     def spawn(self, file_info: Fileinfo) -> Procinfo:
         remote_file_name = file_info.path
         download_type = file_info.type
@@ -345,11 +283,11 @@ class Download:
 
         (out, err) = proc.communicate()
         if out:
-            Log.logit("[download] stdout for " + filepath + ":")
-            Log.logit(out.decode('utf-8'))
+            logit("[download] stdout for " + filepath + ":")
+            logit(out.decode('utf-8'))
         if err:
-            Log.logit("[download] stderr for " + filepath + ":", logging.error)
-            Log.logit(err.decode('utf-8'), logging.error)
+            logit("[download] stderr for " + filepath + ":", logging.error)
+            logit(err.decode('utf-8'), logging.error)
 
         # "Download may be incomplete (downloaded about 99.50%), try resuming"
         if (retcode == 2) and (filetype == Ftypes.FLV):
@@ -365,7 +303,7 @@ class Download:
         else:
             try:
                 os.rename(filepath, filepath + ".part")
-                Log.logit("[rename] " + filepath + ".part", logging.error)
+                logit("[rename] " + filepath + ".part", logging.error)
             except FileNotFoundError as e:
                 self.out['errors'].add(str(e))
             self.out['failed'].add("" + filepath)
@@ -426,11 +364,11 @@ class Decode:
 
         (out, err) = proc.communicate()
         if out:
-            Log.logit("[decode] stdout for " + filepath + ":")
-            Log.logit(out.decode('utf-8'))
+            logit("[decode] stdout for " + filepath + ":")
+            logit(out.decode('utf-8'))
         if err:
-            Log.logit("[decode] stderr for " + filepath + ":", logging.error)
-            Log.logit(err.decode('utf-8'), logging.error)
+            logit("[decode] stderr for " + filepath + ":", logging.error)
+            logit(err.decode('utf-8'), logging.error)
 
         if (retcode == 0):
             self.out['finished'].add("" + filepath)
@@ -438,13 +376,79 @@ class Decode:
         else:
             try:
                 os.remove(filepath)
-                Log.logit("[delete] " + filepath, logging.error)
+                logit("[delete] " + filepath, logging.error)
             except FileNotFoundError as e:
                 self.out['errors'].add(str(e))
             self.out['failed'].add("" + filepath)
             self.out['errors'].add("Error decoding " + filepath + ": " + err.decode('utf-8'))
 
         return retcode
+
+
+__LOGFILE = None
+
+
+def log_init(logfile: str):
+    if logfile is None:
+        return
+
+    try:
+        logging.basicConfig(filename=logfile, level=logging.DEBUG)
+        global __LOGFILE
+        __LOGFILE = logfile
+    except EnvironmentError as e:
+        print(str(e), file=sys.stderr)
+
+
+def logit(message: str, method=logging.info):
+    if __LOGFILE is None:
+        return
+
+    try:
+        for each_line in message.splitlines():
+            method("" + each_line)
+    except EnvironmentError as e:
+        print(str(e), file=sys.stderr)
+
+
+def get_logfile():
+    return __LOGFILE
+
+
+def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
+    def _get_session(desc):
+        if (conf.AUTH.login == '') or (conf.AUTH.password == ''):
+            raise ValueError('Login or password are not configured')
+
+        payload = {
+            'login': conf.AUTH.login,
+            'password': conf.AUTH.password
+        }
+
+        if replay_type == Rtypes.RTMP:
+            conf_section = conf.RTMP
+        elif replay_type == Rtypes.HTTP:
+            conf_section = conf.HTTP
+        else:
+            raise ValueError("Unrecognized replay type")
+
+        with session() as c:
+            c.post(conf_section.login_url, data=payload)
+            response = c.get(conf_section.replay_url)
+            for each_line in response.text.splitlines():
+                m = re.search(conf_section.list_regex, each_line)
+                if m:
+                    print(m.group(1), file=desc)
+
+    if (outfile == '-'):
+        _get_session(sys.stdout)
+    else:
+        if append is True:
+            with open(outfile, 'a') as f:
+                _get_session(f)
+        else:
+            with open(outfile, 'w') as f:
+                _get_session(f)
 
 
 if __name__ == "__main__":
@@ -504,10 +508,10 @@ if __name__ == "__main__":
     conf = Config(config_file)
 
     if (args.get_avail is not None):
-        Download.get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
+        get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
         sys.exit(retval)
     elif (args.get_avail_mobile is not None):
-        Download.get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
+        get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
         sys.exit(retval)
     elif (args.append is True):
         parser.print_help()
@@ -516,7 +520,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     msg = Msgs()
-    Log.init(args.logfile)
+    log_init(args.logfile)
 
     if (args.get_list is not None):
         downloads_list = Download.get_list_from_file(args.get_list)
