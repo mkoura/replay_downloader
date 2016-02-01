@@ -33,7 +33,7 @@ class Ftypes:
 
 
 class Config:
-    class _Copts:
+    class __Copts:
         pass
 
     def __init__(self, cfg_path: str):
@@ -52,22 +52,22 @@ class Config:
                             'list_regex': r'<a href=\"(http:[^\"]*playlist.m3u8)\"'}
         self.cfg.read(cfg_path)
 
-        self.DEFAULT = self._Copts()
+        self.DEFAULT = self.__Copts()
         self.DEFAULT.concurrency = self.cfg['DEFAULT']['concurrency']
-        self.AUTH = self._Copts()
+        self.AUTH = self.__Copts()
         self.AUTH.login = self.cfg['AUTH']['login']
         self.AUTH.password = self.cfg['AUTH']['password']
-        self.COMMANDS = self._Copts()
+        self.COMMANDS = self.__Copts()
         self.COMMANDS.rtmpdump = self.cfg['COMMANDS']['rtmpdump']
         self.COMMANDS.ffmpeg = self.cfg['COMMANDS']['ffmpeg']
-        self.RTMP = self._Copts()
+        self.RTMP = self.__Copts()
         self.RTMP.replay_url = self.cfg['RTMP']['replay_url']
         self.RTMP.login_url = self.cfg['RTMP']['login_url']
         self.RTMP.list_regex = self.cfg['RTMP']['list_regex']
         self.RTMP.replay_rtmp = self.cfg['RTMP']['replay_rtmp']
         self.RTMP.player_url = self.cfg['RTMP']['player_url']
         self.RTMP.referer = self.cfg['RTMP']['referer']
-        self.HTTP = self._Copts()
+        self.HTTP = self.__Copts()
         self.HTTP.replay_url = self.cfg['HTTP']['replay_url']
         self.HTTP.login_url = self.cfg['HTTP']['login_url']
         self.HTTP.list_regex = self.cfg['HTTP']['list_regex']
@@ -109,7 +109,7 @@ class Scheduler:
         self.spawn_callback = spawn_callback
         self.finish_callback = finish_callback
 
-    def _spawn(self) -> bool:
+    def __spawn(self) -> bool:
         while ((self.avail_slots != 0) and (len(self.to_do) != 0)):
             procinfo = self.spawn_callback(self.to_do.pop())
             if procinfo is not None:
@@ -118,7 +118,7 @@ class Scheduler:
 
         return(len(self.to_do) == 0)
 
-    def _check_running_procs(self) -> bool:
+    def __check_running_procs(self) -> bool:
         for procinfo in self.running_procs:
             retcode = procinfo.proc_o.proc.poll()
             if retcode is not None:
@@ -129,8 +129,8 @@ class Scheduler:
         return(len(self.running_procs) == 0)
 
     def run(self) -> bool:
-        s = self._spawn()
-        c = self._check_running_procs()
+        s = self.__spawn()
+        c = self.__check_running_procs()
         return(s and c)
 
 
@@ -163,11 +163,11 @@ class Msgs:
     def print_dummy():
         pass
 
-    def _get_log_key(self, key):
+    def __get_key(self, key):
         return [d[key] for d in self.outlist if key in d]
 
     def _print_new(self, key, out=sys.stdout):
-        for msglist in self._get_log_key(key):
+        for msglist in self.__get_key(key):
             for msg in msglist.get_new():
                 print("" + msglist.text + " " + msg, file=out)
 
@@ -184,22 +184,22 @@ class Msgs:
                 print(sym, end="")
                 sys.stdout.flush()
 
-        for i in self._get_log_key('failed'):
+        for i in self.__get_key('failed'):
             _print('F', i)
 
         syms = ['.', '+', '*', '#']
         slen = len(syms)
         num = 0
-        for i in self._get_log_key('active'):
+        for i in self.__get_key('active'):
             _print(syms[num % slen], i)
             num += 1
 
-        for i in self._get_log_key('skipped'):
+        for i in self.__get_key('skipped'):
             _print('S', i)
 
     def print_summary(self):
         def _print(key):
-            for li in self._get_log_key(key):
+            for li in self.__get_key(key):
                 num = len(li.msglist)
                 if (num > 0):
                     print("" + li.text + " " + str(num) + " file(s):")
