@@ -120,7 +120,7 @@ class MsgList:
     def add(self, message: str):
         self.msglist.append((message, time.time()))
 
-    def erase(self):
+    def clear(self):
         del self.msglist[:]
 
     def get_new(self) -> list:
