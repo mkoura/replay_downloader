@@ -32,7 +32,7 @@ class TestDownloads(unittest.TestCase):
 
     def test_get_list_from_file(self):
         os.chdir(os.path.dirname(__file__))
-        self.assertEqual(rd.Download.get_list_from_file('test_replay_list'),
+        self.assertEqual(rd.get_list_from_file('test_replay_list'),
                          ['20151205_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3',
                           '20151205_TS_ChNN_Atiyoga_Teachings_Tashigar_South_es.mp3',
                           '20151206_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3',

@@ -231,14 +231,6 @@ class Download:
             if not os.path.isdir(destdir):
                 raise
 
-    @staticmethod
-    def get_list_from_file(list_file: str):
-        try:
-            with open(list_file) as f:
-                return f.read().splitlines()
-        except EnvironmentError as e:
-            print(str(e), file=sys.stderr)
-
     def spawn(self, file_info: Fileinfo) -> Procinfo:
         remote_file_name = file_info.path
         download_type = file_info.type
@@ -451,6 +443,14 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
                 _get_session(f)
 
 
+def get_list_from_file(list_file: str):
+    try:
+        with open(list_file) as f:
+            return f.read().splitlines()
+    except EnvironmentError as e:
+        print(str(e), file=sys.stderr)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -523,7 +523,7 @@ if __name__ == "__main__":
     log_init(args.logfile)
 
     if (args.get_list is not None):
-        downloads_list = Download.get_list_from_file(args.get_list)
+        downloads_list = get_list_from_file(args.get_list)
     elif (args.download_file is not None):
         downloads_list = [args.download_file]
 
