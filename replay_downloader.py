@@ -102,7 +102,7 @@ class Scheduler:
 
         return(len(self.running_procs) == 0)
 
-    def run(self) -> bool:
+    def __call__(self) -> bool:
         s = self.__spawn()
         c = self.__check_running_procs()
         return(s and c)
@@ -527,8 +527,8 @@ if __name__ == "__main__":
     elif (args.download_file is not None):
         downloads_list = [args.download_file]
 
-    downloads = Download(conf)
     to_download = Download.parse_downloads_list(downloads_list)
+    downloads = Download(conf)
     downloads_scheduler = Scheduler(downloads.spawn, downloads.finished_handler,
                                     to_download)
     downloads_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
@@ -555,8 +555,8 @@ if __name__ == "__main__":
         downloads_done = decodings_done = False
 
         while not (downloads_done and decodings_done):
-            downloads_done = downloads_scheduler.run()
-            decodings_done = decodings_scheduler.run()
+            downloads_done = downloads_scheduler()
+            decodings_done = decodings_scheduler()
 
             msg_handler()
             time.sleep(1)
