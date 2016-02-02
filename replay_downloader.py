@@ -76,12 +76,12 @@ class Config:
 
 
 class Scheduler:
-    def __init__(self, spawn_callback, finish_callback, to_do: list):
+    def __init__(self, schedulable_obj):
         self.avail_slots = 3
-        self.to_do = to_do
         self.running_procs = []
-        self.spawn_callback = spawn_callback
-        self.finish_callback = finish_callback
+        self.to_do = schedulable_obj.to_do
+        self.spawn_callback = schedulable_obj.spawn
+        self.finish_callback = schedulable_obj.finished_handler
 
     def __spawn(self) -> bool:
         while ((self.avail_slots != 0) and (len(self.to_do) != 0)):
@@ -193,7 +193,7 @@ class Proc:
 
 
 class Download:
-    def __init__(self, conf: Config):
+    def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {'active': MsgList("Downloading"),
                     'finished': MsgList("Downloaded"),
@@ -202,6 +202,7 @@ class Download:
                     'errors': MsgList()}
         self.destination = ''
         self.finished_ready = []
+        self.to_do = to_do
 
     @staticmethod
     def parse_downloads_list(downloads_list: list) -> list:
@@ -305,7 +306,7 @@ class Download:
 
 
 class Decode:
-    def __init__(self, conf: Config):
+    def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {'active': MsgList("Decoding"),
                     'finished': MsgList("Decoded"),
@@ -314,6 +315,7 @@ class Decode:
                     'errors': MsgList()}
         self.destination = ''
         self.finished_ready = []
+        self.to_do = to_do
 
     def set_destdir(self, destdir: str):
         if destdir == '':
@@ -520,6 +522,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
     msg = Msgs()
+    if (args.brief):
+        msg_handler = msg.print_dots
+    elif (args.quiet):
+        msg_handler = msg.print_dummy
+    else:
+        msg_handler = msg.print
+
     log_init(args.logfile)
 
     if (args.get_list is not None):
@@ -528,28 +537,18 @@ if __name__ == "__main__":
         downloads_list = [args.download_file]
 
     to_download = Download.parse_downloads_list(downloads_list)
-    downloads = Download(conf)
-    downloads_scheduler = Scheduler(downloads.spawn, downloads.finished_handler,
-                                    to_download)
+    downloads = Download(conf, to_download)
+    downloads_scheduler = Scheduler(downloads)
     downloads_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.getint('DEFAULT', 'concurrency')
     msg.outlist.append(downloads.out)
 
-    decodings = Decode(conf)
+    decodings = Decode(conf, downloads.finished_ready)
     decodings.set_destdir(args.destination)
-    decodings_scheduler = Scheduler(decodings.spawn,
-                                    decodings.finished_handler,
-                                    downloads.finished_ready)
+    decodings_scheduler = Scheduler(decodings)
     decodings_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.getint('DEFAULT', 'concurrency')
     msg.outlist.append(decodings.out)
-
-    if (args.brief):
-        msg_handler = msg.print_dots
-    elif (args.quiet):
-        msg_handler = msg.print_dummy
-    else:
-        msg_handler = msg.print
 
     try:
         downloads_done = decodings_done = False

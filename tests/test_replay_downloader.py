@@ -18,7 +18,7 @@ class TestDownloads(unittest.TestCase):
 
     def test_set_destdir(self):
         conf = rd.Config('/dev/null')
-        downloads = rd.Download(conf)
+        downloads = rd.Download(conf, [])
         destdir = 'destdir'
 
         downloads.set_destdir(destdir)
@@ -46,7 +46,7 @@ class TestDownloads(unittest.TestCase):
     def test_spawn_http(self):
         conf = rd.Config('/dev/null')
         conf.COMMANDS.rtmpdump = '/bin/true'
-        downloads = rd.Download(conf)
+        downloads = rd.Download(conf, [])
 
         proc = downloads.spawn(rd.Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8', rd.Rtypes.HTTP))
         self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp4', rd.Ftypes.MP4))
@@ -54,7 +54,7 @@ class TestDownloads(unittest.TestCase):
     def test_spawn_unknown_type(self):
         conf = rd.Config('/dev/null')
         conf.COMMANDS.rtmpdump = '/bin/true'
-        downloads = rd.Download(conf)
+        downloads = rd.Download(conf, [])
 
         ret = downloads.spawn(rd.Fileinfo('foo', 20))
         self.assertEqual(ret, None)
@@ -62,7 +62,7 @@ class TestDownloads(unittest.TestCase):
     def test_spawn_file_exists(self):
         conf = rd.Config('/dev/null')
         conf.COMMANDS.rtmpdump = '/bin/true'
-        downloads = rd.Download(conf)
+        downloads = rd.Download(conf, [])
 
         os.chdir(os.path.dirname(__file__))
         ret = downloads.spawn(rd.Fileinfo('existing_file', rd.Rtypes.RTMP))
@@ -71,7 +71,7 @@ class TestDownloads(unittest.TestCase):
     def test_finished_rtmp(self):
         conf = rd.Config('/dev/null')
         conf.COMMANDS.rtmpdump = '/bin/true'
-        downloads = rd.Download(conf)
+        downloads = rd.Download(conf, [])
 
         proc = downloads.spawn(rd.Fileinfo('foo', rd.Rtypes.RTMP))
         self.assertEqual(proc, rd.Procinfo(proc.proc_o, 'foo.flv', rd.Ftypes.FLV))
