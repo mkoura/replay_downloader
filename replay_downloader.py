@@ -130,6 +130,9 @@ class MsgList:
 
 
 class Msgs:
+    syms = ['.', '+', '*', '#']
+    slen = len(syms)
+
     def __init__(self):
         self.outlist = []
 
@@ -161,11 +164,9 @@ class Msgs:
         for i in self.__get_key('failed'):
             _print('F', i)
 
-        syms = ['.', '+', '*', '#']
-        slen = len(syms)
         num = 0
         for i in self.__get_key('active'):
-            _print(syms[num % slen], i)
+            _print(self.syms[num % self.slen], i)
             num += 1
 
         for i in self.__get_key('skipped'):
