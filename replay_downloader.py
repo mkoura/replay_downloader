@@ -143,17 +143,17 @@ class Msgs:
     def __get_key(self, key):
         return [d[key] for d in self.outlist if key in d]
 
-    def _print_new(self, key, out=sys.stdout):
+    def __print_new(self, key, out=sys.stdout):
         for msglist in self.__get_key(key):
             for msg in msglist.get_new():
                 print("" + msglist.text + " " + msg, file=out)
 
     def print_errors(self):
-        self._print_new('errors', sys.stderr)
+        self.__print_new('errors', sys.stderr)
 
     def print(self):
         self.print_errors()
-        self._print_new('active')
+        self.__print_new('active')
 
     def print_dots(self):
         def _print(sym, msglist):
