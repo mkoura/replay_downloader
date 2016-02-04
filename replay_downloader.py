@@ -79,9 +79,10 @@ class Scheduler:
     def __init__(self, schedulable_obj):
         self.avail_slots = 3
         self.running_procs = []
-        self.to_do = schedulable_obj.to_do
-        self.spawn_callback = schedulable_obj.spawn
-        self.finish_callback = schedulable_obj.finished_handler
+        self.obj = schedulable_obj
+        self.to_do = self.obj.to_do
+        self.spawn_callback = self.obj.spawn
+        self.finish_callback = self.obj.finished_handler
 
     def __spawn(self) -> bool:
         while ((self.avail_slots != 0) and (len(self.to_do) != 0)):
@@ -106,6 +107,9 @@ class Scheduler:
         s = self.__spawn()
         c = self.__check_running_procs()
         return(s and c)
+
+    def get_obj(self):
+        return self.obj
 
 
 class MsgList:
