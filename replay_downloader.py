@@ -564,12 +564,13 @@ if __name__ == "__main__":
         if not args.quiet:
             msg.print_summary()
 
-        if ((len(downloads.out['failed'].msglist) > 0)
-                or (len(decodings.out['failed'].msglist) > 0)):
-            retval = 1
-        elif ((len(downloads.out['skipped'].msglist) > 0)
-                or (len(decodings.out['skipped'].msglist) > 0)):
-            retval = 2
+        if retval == 0:
+            for m in msg.outlist:
+                if len(m['failed'].msglist) > 0:
+                    retval = 1
+                    break
+                if len(m['skipped'].msglist) > 0:
+                    retval = 2
     except KeyboardInterrupt:
         print(" Interrupting running processes...")
         retval = 1
