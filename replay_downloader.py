@@ -606,13 +606,14 @@ if __name__ == "__main__":
             msg.print_summary()
 
         if retval == 0:
-            for m in msg.get_msglists_with_key('skipped'):
-                if len(m.msglist) > 0:
-                    retval = 2
-                    break
             for m in msg.get_msglists_with_key('failed'):
                 if len(m.msglist) > 0:
                     retval = 1
+                    break
+        if retval == 0:
+            for m in msg.get_msglists_with_key('skipped'):
+                if len(m.msglist) > 0:
+                    retval = 2
                     break
     except KeyboardInterrupt:
         print(" Interrupting running processes...")
