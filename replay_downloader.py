@@ -555,12 +555,17 @@ if __name__ == "__main__":
         else conf.getint('DEFAULT', 'concurrency')
     msg.outlist.append(decodings.out)
 
-    try:
-        downloads_done = decodings_done = False
+    schedulers_list = (downloads_scheduler, decodings_scheduler)
 
-        while not (downloads_done and decodings_done):
-            downloads_done = downloads_scheduler()
-            decodings_done = decodings_scheduler()
+    try:
+        done = False
+
+        while not done:
+            done = True
+            for s in schedulers_list:
+                t = s()
+                if t is False:
+                    done = False
 
             msg_handler()
             time.sleep(1)
@@ -578,8 +583,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print(" Interrupting running processes...")
         retval = 1
-        for l in (downloads_scheduler.running_procs, decodings_scheduler.running_procs):
-            for procinfo in l:
+        for l in schedulers_list:
+            for procinfo in l.running_procs:
                 proc = procinfo.proc_o.proc
                 if proc.poll() is None:
                     proc.kill()
