@@ -574,18 +574,19 @@ if __name__ == "__main__":
     elif (args.download_file is not None):
         downloads_list = [args.download_file]
 
+    avail_slots = args.concurrent if args.concurrent > 0 \
+        else conf.getint('DEFAULT', 'concurrency')
+
     to_download = Download.parse_downloads_list(downloads_list)
     downloads = Download(conf, to_download)
     downloads_scheduler = Scheduler(downloads)
-    downloads_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
-        else conf.getint('DEFAULT', 'concurrency')
+    downloads_scheduler.avail_slots = avail_slots
     schedulers.add(downloads_scheduler)
 
     decodings = Decode(conf, downloads.finished_ready)
     decodings.set_destdir(args.destination)
     decodings_scheduler = Scheduler(decodings)
-    decodings_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
-        else conf.getint('DEFAULT', 'concurrency')
+    decodings_scheduler.avail_slots = avail_slots
     schedulers.add(decodings_scheduler)
 
     try:
