@@ -108,8 +108,21 @@ class Scheduler:
         c = self.__check_running_procs()
         return(s and c)
 
-    def get_obj(self):
+    def get_scheduled_obj(self):
         return self.obj
+
+
+class Schedulers():
+    def __init__(self):
+        self.pipeline = []
+        self.scheduled_objs = []
+        self.on_update_hooks = []
+
+    def add(self, scheduler: Scheduler):
+        self.pipeline.append(scheduler)
+        self.scheduled_objs.append(scheduler.get_scheduled_obj())
+        for h in self.on_update_hooks:
+            h(self)
 
 
 class MsgList:
@@ -138,17 +151,34 @@ class Msgs:
     slen = len(syms)
 
     def __init__(self):
-        self.outlist = []
+        self.__outlist = []
+        self.__scheduled_outlist = []
+        self.__combined_outlist = []
 
     @staticmethod
     def print_dummy():
         pass
 
-    def __get_key(self, key):
-        return [d[key] for d in self.outlist if key in d]
+    def add_to_outlist(self, new_msglist: MsgList):
+        self.__outlist.append(new_msglist)
+        del self.__combined_outlist[:]
+        self.__combined_outlist.extend(self.__outlist)
+        self.__combined_outlist.extend(self.__scheduled_outlist)
 
-    def __print_new(self, key, out=sys.stdout):
-        for msglist in self.__get_key(key):
+    def schedulers_update_hook(self, schedulers: Schedulers):
+        self.__scheduled_outlist = [l.out for l in schedulers.scheduled_objs]
+        del self.__combined_outlist[:]
+        self.__combined_outlist.extend(self.__outlist)
+        self.__combined_outlist.extend(self.__scheduled_outlist)
+
+    def get_outlist(self):
+        return self.__combined_outlist
+
+    def get_msglists_with_key(self, key: str):
+        return [d[key] for d in self.__combined_outlist if key in d]
+
+    def __print_new(self, key: str, out=sys.stdout):
+        for msglist in self.get_msglists_with_key(key):
             for msg in msglist.get_new():
                 print("" + msglist.text + " " + msg, file=out)
 
@@ -165,20 +195,20 @@ class Msgs:
                 print(sym, end="")
                 sys.stdout.flush()
 
-        for i in self.__get_key('failed'):
+        for i in self.get_msglists_with_key('failed'):
             _print('F', i)
 
         num = 0
-        for i in self.__get_key('active'):
+        for i in self.get_msglists_with_key('active'):
             _print(self.syms[num % self.slen], i)
             num += 1
 
-        for i in self.__get_key('skipped'):
+        for i in self.get_msglists_with_key('skipped'):
             _print('S', i)
 
     def print_summary(self):
         def _print(key):
-            for li in self.__get_key(key):
+            for li in self.get_msglists_with_key(key):
                 num = len(li.msglist)
                 if (num > 0):
                     print("" + li.text + " " + str(num) + " file(s):")
@@ -534,6 +564,9 @@ if __name__ == "__main__":
     else:
         msg_handler = msg.print
 
+    schedulers = Schedulers()
+    schedulers.on_update_hooks.append(msg.schedulers_update_hook)
+
     log_init(args.logfile)
 
     if (args.get_list is not None):
@@ -546,23 +579,21 @@ if __name__ == "__main__":
     downloads_scheduler = Scheduler(downloads)
     downloads_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.getint('DEFAULT', 'concurrency')
-    msg.outlist.append(downloads.out)
+    schedulers.add(downloads_scheduler)
 
     decodings = Decode(conf, downloads.finished_ready)
     decodings.set_destdir(args.destination)
     decodings_scheduler = Scheduler(decodings)
     decodings_scheduler.avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.getint('DEFAULT', 'concurrency')
-    msg.outlist.append(decodings.out)
-
-    schedulers_list = (downloads_scheduler, decodings_scheduler)
+    schedulers.add(decodings_scheduler)
 
     try:
         done = False
 
         while not done:
             done = True
-            for s in schedulers_list:
+            for s in schedulers.pipeline:
                 t = s()
                 if t is False:
                     done = False
@@ -574,16 +605,18 @@ if __name__ == "__main__":
             msg.print_summary()
 
         if retval == 0:
-            for m in msg.outlist:
-                if len(m['failed'].msglist) > 0:
+            for m in msg.get_msglists_with_key('skipped'):
+                if len(m.msglist) > 0:
+                    retval = 2
+                    break
+            for m in msg.get_msglists_with_key('failed'):
+                if len(m.msglist) > 0:
                     retval = 1
                     break
-                if len(m['skipped'].msglist) > 0:
-                    retval = 2
     except KeyboardInterrupt:
         print(" Interrupting running processes...")
         retval = 1
-        for l in schedulers_list:
+        for l in schedulers.pipeline:
             for procinfo in l.running_procs:
                 proc = procinfo.proc_o.proc
                 if proc.poll() is None:
