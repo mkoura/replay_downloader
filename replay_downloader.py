@@ -84,7 +84,7 @@ class Scheduler:
         self.spawn_callback = self.obj.spawn
         self.finish_callback = self.obj.finished_handler
 
-    def __spawn(self) -> bool:
+    def _spawn(self) -> bool:
         while ((self.avail_slots != 0) and (len(self.to_do) != 0)):
             procinfo = self.spawn_callback(self.to_do.pop())
             if procinfo is not None:
@@ -93,7 +93,7 @@ class Scheduler:
 
         return(len(self.to_do) == 0)
 
-    def __check_running_procs(self) -> bool:
+    def _check_running_procs(self) -> bool:
         for procinfo in self.running_procs:
             retcode = procinfo.proc_o.proc.poll()
             if retcode is not None:
@@ -104,8 +104,8 @@ class Scheduler:
         return(len(self.running_procs) == 0)
 
     def __call__(self) -> bool:
-        s = self.__spawn()
-        c = self.__check_running_procs()
+        s = self._spawn()
+        c = self._check_running_procs()
         return(s and c)
 
     def get_scheduled_obj(self):
@@ -151,43 +151,43 @@ class Msgs:
     slen = len(syms)
 
     def __init__(self):
-        self.__outlist = []
-        self.__scheduled_outlist = []
-        self.__combined_outlist = []
+        self._outlist = []
+        self._scheduled_outlist = []
+        self._combined_outlist = []
 
     @staticmethod
     def print_dummy():
         pass
 
     def add_to_outlist(self, new_msglist: MsgList):
-        self.__outlist.append(new_msglist)
-        del self.__combined_outlist[:]
-        self.__combined_outlist.extend(self.__outlist)
-        self.__combined_outlist.extend(self.__scheduled_outlist)
+        self._outlist.append(new_msglist)
+        del self._combined_outlist[:]
+        self._combined_outlist.extend(self._outlist)
+        self._combined_outlist.extend(self._scheduled_outlist)
 
     def schedulers_update_hook(self, schedulers: Schedulers):
-        self.__scheduled_outlist = [l.out for l in schedulers.scheduled_objs]
-        del self.__combined_outlist[:]
-        self.__combined_outlist.extend(self.__outlist)
-        self.__combined_outlist.extend(self.__scheduled_outlist)
+        self._scheduled_outlist = [l.out for l in schedulers.scheduled_objs]
+        del self._combined_outlist[:]
+        self._combined_outlist.extend(self._outlist)
+        self._combined_outlist.extend(self._scheduled_outlist)
 
     def get_outlist(self):
-        return self.__combined_outlist
+        return self._combined_outlist
 
     def get_msglists_with_key(self, key: str):
-        return [d[key] for d in self.__combined_outlist if key in d]
+        return [d[key] for d in self._combined_outlist if key in d]
 
-    def __print_new(self, key: str, out=sys.stdout):
+    def _print_new(self, key: str, out=sys.stdout):
         for msglist in self.get_msglists_with_key(key):
             for msg in msglist.get_new():
                 print("" + msglist.text + " " + msg, file=out)
 
     def print_errors(self):
-        self.__print_new('errors', sys.stderr)
+        self._print_new('errors', sys.stderr)
 
     def print(self):
         self.print_errors()
-        self.__print_new('active')
+        self._print_new('active')
 
     def print_dots(self):
         def _print(sym, msglist):
@@ -414,7 +414,7 @@ class Decode:
         return retcode
 
 
-__LOGFILE = None
+_LOGFILE = None
 
 
 def log_init(logfile: str):
@@ -423,14 +423,14 @@ def log_init(logfile: str):
 
     try:
         logging.basicConfig(filename=logfile, level=logging.DEBUG)
-        global __LOGFILE
-        __LOGFILE = logfile
+        global _LOGFILE
+        _LOGFILE = logfile
     except EnvironmentError as e:
         print(str(e), file=sys.stderr)
 
 
 def logit(message: str, method=logging.info):
-    if __LOGFILE is None:
+    if _LOGFILE is None:
         return
 
     try:
@@ -441,7 +441,7 @@ def logit(message: str, method=logging.info):
 
 
 def get_logfile():
-    return __LOGFILE
+    return _LOGFILE
 
 
 def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
