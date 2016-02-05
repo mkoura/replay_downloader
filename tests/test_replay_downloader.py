@@ -48,8 +48,10 @@ class TestDownloads(unittest.TestCase):
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 
-        proc = downloads.spawn(rd.Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8', rd.Rtypes.HTTP))
-        self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp4', rd.Ftypes.MP4))
+        proc = downloads.spawn(rd.Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
+                               rd.Rtypes.HTTP))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp4',
+                         rd.Ftypes.MP4))
 
     def test_spawn_unknown_type(self):
         conf = rd.Config('/dev/null')
@@ -74,11 +76,13 @@ class TestDownloads(unittest.TestCase):
         downloads = rd.Download(conf, [])
 
         proc = downloads.spawn(rd.Fileinfo('foo', rd.Rtypes.RTMP))
-        self.assertEqual(proc, rd.Procinfo(proc.proc_o, 'foo.flv', rd.Ftypes.FLV))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, 'foo.flv',
+                                           rd.Ftypes.FLV))
         while (proc.proc_o.proc.poll() is None):
             time.sleep(0.05)
 
         ret = downloads.finished_handler(proc)
         self.assertEqual(ret, 0)
-        self.assertEqual(downloads.out['finished'].msglist[0][0], 'foo.flv')
-        self.assertEqual(downloads.finished_ready[0], rd.Fileinfo('foo.flv', rd.Ftypes.FLV))
+        self.assertEqual(downloads.out[rd.MsgTypes.finished].msglist[0][0], 'foo.flv')
+        self.assertEqual(downloads.finished_ready[0],
+                         rd.Fileinfo('foo.flv', rd.Ftypes.FLV))

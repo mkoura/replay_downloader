@@ -33,6 +33,14 @@ class Ftypes(Enum):
     MP4 = 3
 
 
+class MsgTypes(Enum):
+    active = 0
+    finished = 1
+    skipped = 2
+    failed = 3
+    errors = 4
+
+
 class Config:
     class __Copts:
         pass
@@ -185,11 +193,11 @@ class Msgs:
                 print("" + msglist.text + " " + msg, file=out)
 
     def print_errors(self):
-        self._print_new('errors', sys.stderr)
+        self._print_new(MsgTypes.errors, sys.stderr)
 
     def print(self):
         self.print_errors()
-        self._print_new('active')
+        self._print_new(MsgTypes.active)
 
     def print_dots(self):
         def _print(sym, msglist):
@@ -197,15 +205,15 @@ class Msgs:
                 print(sym, end="")
                 sys.stdout.flush()
 
-        for i in self.get_msglists_with_key('failed'):
+        for i in self.get_msglists_with_key(MsgTypes.failed):
             _print('F', i)
 
         num = 0
-        for i in self.get_msglists_with_key('active'):
+        for i in self.get_msglists_with_key(MsgTypes.active):
             _print(self.syms[num % self.slen], i)
             num += 1
 
-        for i in self.get_msglists_with_key('skipped'):
+        for i in self.get_msglists_with_key(MsgTypes.skipped):
             _print('S', i)
 
     def print_summary(self):
@@ -219,9 +227,9 @@ class Msgs:
 
         print("")
 
-        _print('finished')
-        _print('failed')
-        _print('skipped')
+        _print(MsgTypes.finished)
+        _print(MsgTypes.failed)
+        _print(MsgTypes.skipped)
 
 
 class Proc:
@@ -232,11 +240,11 @@ class Proc:
 class Download:
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
-        self.out = {'active': MsgList("Downloading"),
-                    'finished': MsgList("Downloaded"),
-                    'skipped': MsgList("Skipped download of"),
-                    'failed': MsgList("Failed to download"),
-                    'errors': MsgList()}
+        self.out = {MsgTypes.active: MsgList("Downloading"),
+                    MsgTypes.finished: MsgList("Downloaded"),
+                    MsgTypes.skipped: MsgList("Skipped download of"),
+                    MsgTypes.failed: MsgList("Failed to download"),
+                    MsgTypes.errors: MsgList()}
         self.destination = ''
         self.finished_ready = []
         self.to_do = to_do
@@ -289,19 +297,19 @@ class Download:
             command = [self.conf.COMMANDS.ffmpeg, "-i",
                        remote_file_name, "-c", "copy", res_file]
         else:
-            self.out['errors'].add("Unrecognized download type for " +
-                                   remote_file_name)
+            self.out[MsgTypes.errors].add("Unrecognized download type for " +
+                                          remote_file_name)
             return None
 
         if os.path.isfile(res_file):
-            self.out['errors'].add("WARNING: skipping download, file exists: " +
-                                   res_file)
-            self.out['skipped'].add("" + res_file)
+            self.out[MsgTypes.errors].add("WARNING: skipping download, " +
+                                          "file exists: " + res_file)
+            self.out[MsgTypes.skipped].add("" + res_file)
             self.finished_ready.append((res_file, res_type))
             return None
         else:
             p = Popen(command, stdout=PIPE, stderr=PIPE)
-            self.out['active'].add("" + res_file)
+            self.out[MsgTypes.active].add("" + res_file)
             proc = Proc(p)
 
         return Procinfo(proc, res_file, res_type)
@@ -330,17 +338,17 @@ class Download:
                     break
 
         if (retcode == 0):
-            self.out['finished'].add("" + filepath)
+            self.out[MsgTypes.finished].add("" + filepath)
             self.finished_ready.append(Fileinfo(filepath, filetype))
         else:
             try:
                 os.rename(filepath, filepath + ".part")
                 logit("[rename] " + filepath + ".part", logging.error)
             except FileNotFoundError as e:
-                self.out['errors'].add(str(e))
-            self.out['failed'].add("" + filepath)
-            self.out['errors'].add("Error downloading " + filepath + ": " +
-                                   err.decode('utf-8'))
+                self.out[MsgTypes.errors].add(str(e))
+            self.out[MsgTypes.failed].add("" + filepath)
+            self.out[MsgTypes.errors].add("Error downloading " + filepath +
+                                          ": " + err.decode('utf-8'))
 
         return retcode
 
@@ -348,11 +356,11 @@ class Download:
 class Decode:
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
-        self.out = {'active': MsgList("Decoding"),
-                    'finished': MsgList("Decoded"),
-                    'skipped': MsgList("Skipped decoding of"),
-                    'failed': MsgList("Failed to decode"),
-                    'errors': MsgList()}
+        self.out = {MsgTypes.active: MsgList("Decoding"),
+                    MsgTypes.finished: MsgList("Decoded"),
+                    MsgTypes.skipped: MsgList("Skipped decoding of"),
+                    MsgTypes.failed: MsgList("Failed to decode"),
+                    MsgTypes.errors: MsgList()}
         self.destination = ''
         self.finished_ready = []
         self.to_do = to_do
@@ -377,15 +385,15 @@ class Decode:
         if (file_type is not Ftypes.FLV):
             return None
         elif os.path.isfile(res_file):
-            self.out['errors'].add("WARNING: skipping decoding, file exists: " +
-                                   res_file)
-            self.out['skipped'].add("" + res_file)
+            self.out[MsgTypes.errors].add("WARNING: skipping decoding, " +
+                                          "file exists: " + res_file)
+            self.out[MsgTypes.skipped].add("" + res_file)
             return None
         else:
             p = Popen([self.conf.COMMANDS.ffmpeg, "-i",
                       local_file_name, "-vn", "-acodec", "copy", res_file],
                       stdout=PIPE, stderr=PIPE)
-            self.out['active'].add("" + res_file)
+            self.out[MsgTypes.active].add("" + res_file)
             proc = Proc(p)
 
         return Procinfo(proc, res_file, Ftypes.MP3)
@@ -406,17 +414,17 @@ class Decode:
             logit(err.decode('utf-8'), logging.error)
 
         if (retcode == 0):
-            self.out['finished'].add("" + filepath)
+            self.out[MsgTypes.finished].add("" + filepath)
             self.finished_ready.append(Fileinfo(filepath, filetype))
         else:
             try:
                 os.remove(filepath)
                 logit("[delete] " + filepath, logging.error)
             except FileNotFoundError as e:
-                self.out['errors'].add(str(e))
-            self.out['failed'].add("" + filepath)
-            self.out['errors'].add("Error decoding " + filepath + ": " +
-                                   err.decode('utf-8'))
+                self.out[MsgTypes.errors].add(str(e))
+            self.out[MsgTypes.failed].add("" + filepath)
+            self.out[MsgTypes.errors].add("Error decoding " + filepath +
+                                          ": " + err.decode('utf-8'))
 
         return retcode
 
@@ -617,12 +625,12 @@ if __name__ == "__main__":
             msg.print_summary()
 
         if retval == 0:
-            for m in msg.get_msglists_with_key('failed'):
+            for m in msg.get_msglists_with_key(MsgTypes.failed):
                 if len(m.msglist) > 0:
                     retval = 1
                     break
         if retval == 0:
-            for m in msg.get_msglists_with_key('skipped'):
+            for m in msg.get_msglists_with_key(MsgTypes.skipped):
                 if len(m.msglist) > 0:
                     retval = 2
                     break
