@@ -208,10 +208,8 @@ class Msgs:
         for i in self.get_msglists_with_key(MsgTypes.failed):
             _print('F', i)
 
-        num = 0
-        for i in self.get_msglists_with_key(MsgTypes.active):
-            _print(self.syms[num % self.slen], i)
-            num += 1
+        for num, li in enumerate(self.get_msglists_with_key(MsgTypes.active)):
+            _print(self.syms[num % self.slen], li)
 
         for i in self.get_msglists_with_key(MsgTypes.skipped):
             _print('S', i)
