@@ -12,6 +12,7 @@ import time
 import logging
 import collections
 import configparser
+from enum import Enum
 from requests import session
 from subprocess import Popen, PIPE
 
@@ -20,12 +21,12 @@ Fileinfo = collections.namedtuple('Fileinfo', 'path type')
 Procinfo = collections.namedtuple('Procinfo', 'proc_o path type')
 
 
-class Rtypes:
+class Rtypes(Enum):
     RTMP = 0
     HTTP = 1
 
 
-class Ftypes:
+class Ftypes(Enum):
     FLV = 0
     MP3 = 1
     AAC = 2
