@@ -166,7 +166,8 @@ class Msgs:
         self._combined_outlist.extend(self._scheduled_outlist)
 
     def schedulers_update_hook(self, schedulers: Schedulers):
-        self._scheduled_outlist = [l.out for l in schedulers.scheduled_objs if hasattr(l, 'out')]
+        self._scheduled_outlist = [l.out for l in schedulers.scheduled_objs
+                                   if hasattr(l, 'out')]
         del self._combined_outlist[:]
         self._combined_outlist.extend(self._outlist)
         self._combined_outlist.extend(self._scheduled_outlist)
@@ -274,8 +275,8 @@ class Download:
         if (download_type is Rtypes.RTMP):
             res_file = self.destination + remote_file_name + '.flv'
             res_type = Ftypes.FLV
-            command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live", "--rtmp",
-                       self.conf.RTMP.replay_rtmp + "/" +
+            command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live",
+                       "--rtmp", self.conf.RTMP.replay_rtmp + "/" +
                        remote_file_name, "--pageUrl",
                        self.conf.RTMP.referer, "--swfUrl",
                        self.conf.RTMP.replay_url, "--swfVfy",
@@ -287,11 +288,13 @@ class Download:
             command = [self.conf.COMMANDS.ffmpeg, "-i",
                        remote_file_name, "-c", "copy", res_file]
         else:
-            self.out['errors'].add("Unrecognized download type for " + remote_file_name)
+            self.out['errors'].add("Unrecognized download type for " +
+                                   remote_file_name)
             return None
 
         if os.path.isfile(res_file):
-            self.out['errors'].add("WARNING: skipping download, file exists: " + res_file)
+            self.out['errors'].add("WARNING: skipping download, file exists: " +
+                                   res_file)
             self.out['skipped'].add("" + res_file)
             self.finished_ready.append((res_file, res_type))
             return None
@@ -335,7 +338,8 @@ class Download:
             except FileNotFoundError as e:
                 self.out['errors'].add(str(e))
             self.out['failed'].add("" + filepath)
-            self.out['errors'].add("Error downloading " + filepath + ": " + err.decode('utf-8'))
+            self.out['errors'].add("Error downloading " + filepath + ": " +
+                                   err.decode('utf-8'))
 
         return retcode
 
@@ -372,7 +376,8 @@ class Decode:
         if (file_type is not Ftypes.FLV):
             return None
         elif os.path.isfile(res_file):
-            self.out['errors'].add("WARNING: skipping decoding, file exists: " + res_file)
+            self.out['errors'].add("WARNING: skipping decoding, file exists: " +
+                                   res_file)
             self.out['skipped'].add("" + res_file)
             return None
         else:
@@ -409,7 +414,8 @@ class Decode:
             except FileNotFoundError as e:
                 self.out['errors'].add(str(e))
             self.out['failed'].add("" + filepath)
-            self.out['errors'].add("Error decoding " + filepath + ": " + err.decode('utf-8'))
+            self.out['errors'].add("Error decoding " + filepath + ": " +
+                                   err.decode('utf-8'))
 
         return retcode
 
@@ -509,11 +515,14 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--concurrent', metavar='NUM', type=int,
                         help='number of concurrent downloads', default='-1')
     parser.add_argument('-d', '--destination', metavar='DIR',
-                        help='destination directory for decoded files', default='')
+                        help='destination directory for decoded files',
+                        default='')
     parser.add_argument('-m', '--logfile', metavar='FILE',
                         help='log file')
-    parser.add_argument('-b', '--brief', help='less verbose output', action='store_true')
-    parser.add_argument('-q', '--quiet', help='even less verbose output', action='store_true')
+    parser.add_argument('-b', '--brief', help='less verbose output',
+                        action='store_true')
+    parser.add_argument('-q', '--quiet', help='even less verbose output',
+                        action='store_true')
     args = parser.parse_args()
 
     if not len(sys.argv) > 1:
@@ -537,7 +546,8 @@ if __name__ == "__main__":
 
     if config_file == '':
         if (args.config_file is not None):
-            print("Error: cannot open config file '" + args.config_file + "'", file=sys.stderr)
+            print("Error: cannot open config file '" + args.config_file + "'",
+                  file=sys.stderr)
         else:
             print("Error: no config file found.", file=sys.stderr)
         sys.exit(1)
@@ -552,8 +562,8 @@ if __name__ == "__main__":
         sys.exit(retval)
     elif (args.append is True):
         parser.print_help()
-        print("\n-a (--append) allowed only in combination with -l (--get-avail) " +
-              "and -k (--get-avail-mobile)", file=sys.stderr)
+        print("\n-a (--append) allowed only in combination with " +
+              "-l (--get-avail) and -k (--get-avail-mobile)", file=sys.stderr)
         sys.exit(1)
 
     msg = Msgs()
