@@ -166,7 +166,7 @@ class Msgs:
         self._combined_outlist.extend(self._scheduled_outlist)
 
     def schedulers_update_hook(self, schedulers: Schedulers):
-        self._scheduled_outlist = [l.out for l in schedulers.scheduled_objs]
+        self._scheduled_outlist = [l.out for l in schedulers.scheduled_objs if hasattr(l, 'out')]
         del self._combined_outlist[:]
         self._combined_outlist.extend(self._outlist)
         self._combined_outlist.extend(self._scheduled_outlist)
