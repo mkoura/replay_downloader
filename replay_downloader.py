@@ -62,7 +62,7 @@ class Config:
         self.cfg.read(cfg_path)
 
         self.DEFAULT = self.__Copts()
-        self.DEFAULT.concurrency = self.cfg['DEFAULT']['concurrency']
+        self.DEFAULT.concurrency = self.cfg.getint('DEFAULT', 'concurrency')
         self.AUTH = self.__Copts()
         self.AUTH.login = self.cfg['AUTH']['login']
         self.AUTH.password = self.cfg['AUTH']['password']
@@ -80,8 +80,6 @@ class Config:
         self.HTTP.replay_url = self.cfg['HTTP']['replay_url']
         self.HTTP.login_url = self.cfg['HTTP']['login_url']
         self.HTTP.list_regex = self.cfg['HTTP']['list_regex']
-
-        self.getint = self.cfg.getint
 
 
 class Scheduler:
@@ -592,7 +590,7 @@ if __name__ == "__main__":
         downloads_list = [args.download_file]
 
     avail_slots = args.concurrent if args.concurrent > 0 \
-        else conf.getint('DEFAULT', 'concurrency')
+        else conf.DEFAULT.concurrency
 
     to_download = Download.parse_downloads_list(downloads_list)
     downloads = Download(conf, to_download)
