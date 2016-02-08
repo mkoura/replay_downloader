@@ -17,7 +17,7 @@ class TestDownloads(unittest.TestCase):
                           rd.Fileinfo(path='http://bar1', type=rd.Rtypes.HTTP)])
 
     def test_set_destdir(self):
-        conf = rd.Config('/dev/null')
+        conf = rd.Config()
         downloads = rd.Download(conf, [])
         destdir = 'destdir'
 
@@ -44,7 +44,7 @@ class TestDownloads(unittest.TestCase):
                           '20151208_TS_ChNN_Atiyoga_Teachings_Tashigar_South.mp3'])
 
     def test_spawn_http(self):
-        conf = rd.Config('/dev/null')
+        conf = rd.Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 
@@ -54,7 +54,7 @@ class TestDownloads(unittest.TestCase):
                          rd.Ftypes.MP4))
 
     def test_spawn_unknown_type(self):
-        conf = rd.Config('/dev/null')
+        conf = rd.Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 
@@ -62,7 +62,7 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(ret, None)
 
     def test_spawn_file_exists(self):
-        conf = rd.Config('/dev/null')
+        conf = rd.Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 
@@ -71,7 +71,7 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(ret, None)
 
     def test_finished_rtmp(self):
-        conf = rd.Config('/dev/null')
+        conf = rd.Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 

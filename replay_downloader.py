@@ -45,7 +45,7 @@ class Config:
     class __Copts:
         pass
 
-    def __init__(self, cfg_path: str):
+    def __init__(self, cfg_path: str=''):
         self.cfg = configparser.ConfigParser()
         self.cfg['DEFAULT'] = {'concurrency': '3'}
         self.cfg['AUTH'] = {'login': '', 'password': ''}
@@ -59,7 +59,9 @@ class Config:
         self.cfg['HTTP'] = {'replay_url': 'http://webcast.dzogchen.net/index.php?id=mobilereplay',
                             'login_url': 'http://webcast.dzogchen.net/login-exec.php',
                             'list_regex': r'<a href=\"(http:[^\"]*playlist.m3u8)\"'}
-        self.cfg.read(cfg_path)
+
+        if os.path.isfile(cfg_path):
+            self.cfg.read(cfg_path)
 
         self.DEFAULT = self.__Copts()
         self.DEFAULT.concurrency = self.cfg.getint('DEFAULT', 'concurrency')
