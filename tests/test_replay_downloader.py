@@ -86,3 +86,19 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(downloads.out[rd.MsgTypes.finished].msglist[0][0], 'foo.flv')
         self.assertEqual(downloads.finished_ready[0],
                          rd.Fileinfo('foo.flv', rd.Ftypes.FLV))
+
+
+class TestDecodings(unittest.TestCase):
+    def test_set_destdir(self):
+        conf = rd.Config()
+        decodings = rd.Decode(conf, [])
+        destdir = 'destdir'
+
+        decodings.set_destdir(destdir)
+        self.assertEqual(decodings.destination, destdir)
+        self.assertTrue(os.path.isdir(destdir))
+        try:
+            os.rmdir(destdir)
+        except OSError:
+            if os.path.isdir(destdir):
+                raise
