@@ -8,9 +8,9 @@ import replay_downloader as rd
 
 
 class TestDownloads(unittest.TestCase):
-    def test_parse_downloads_list(self):
+    def test_parse_todownload_list(self):
         l = [' # foo', 'bar', 'http://baz', ' foo1', 'http://bar1 ']
-        self.assertEqual(rd.Download.parse_downloads_list(l),
+        self.assertEqual(rd.Download.parse_todownload_list(l),
                          [rd.Fileinfo(path='bar', type=rd.Rtypes.RTMP),
                           rd.Fileinfo(path='http://baz', type=rd.Rtypes.HTTP),
                           rd.Fileinfo(path='foo1', type=rd.Rtypes.RTMP),

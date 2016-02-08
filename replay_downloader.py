@@ -246,7 +246,7 @@ class Download:
         self.to_do = to_do
 
     @staticmethod
-    def parse_downloads_list(downloads_list: list) -> list:
+    def parse_todownload_list(downloads_list: list) -> list:
         retlist = []
         for i in downloads_list:
             line = i.strip()
@@ -592,7 +592,7 @@ if __name__ == "__main__":
     avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.DEFAULT.concurrency
 
-    to_download = Download.parse_downloads_list(downloads_list)
+    to_download = Download.parse_todownload_list(downloads_list)
     downloads = Download(conf, to_download)
     downloads_scheduler = Scheduler(downloads)
     downloads_scheduler.avail_slots = avail_slots
