@@ -102,3 +102,13 @@ class TestDecodings(unittest.TestCase):
         except OSError:
             if os.path.isdir(destdir):
                 raise
+
+    def test_spawn(self):
+        conf = rd.Config()
+        conf.COMMANDS.ffmpeg = '/bin/true'
+        decodings = rd.Decode(conf, [])
+
+        proc = decodings.spawn(rd.Fileinfo('20150816.mp3.flv',
+                               rd.Ftypes.FLV))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp3',
+                         rd.Ftypes.MP3))
