@@ -112,3 +112,11 @@ class TestDecodings(unittest.TestCase):
                                rd.Ftypes.FLV))
         self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp3',
                          rd.Ftypes.MP3))
+
+    def test_spawn_unknown_type(self):
+        conf = rd.Config()
+        conf.COMMANDS.ffmpeg = '/bin/true'
+        decodings = rd.Decode(conf, [])
+
+        ret = decodings.spawn(rd.Fileinfo('20150816.mp3', 'mp3'))
+        self.assertEqual(ret, None)
