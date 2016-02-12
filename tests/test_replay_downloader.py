@@ -120,3 +120,12 @@ class TestDecodings(unittest.TestCase):
 
         ret = decodings.spawn(rd.Fileinfo('20150816.mp3', 'mp3'))
         self.assertEqual(ret, None)
+
+    def test_spawn_file_exists(self):
+        conf = rd.Config()
+        conf.COMMANDS.ffmpeg = '/bin/true'
+        decodings = rd.Decode(conf, [])
+
+        os.chdir(os.path.dirname(__file__))
+        ret = decodings.spawn(rd.Fileinfo('existing_file.flv.flv', rd.Ftypes.FLV))
+        self.assertEqual(ret, None)
