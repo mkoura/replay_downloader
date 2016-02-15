@@ -108,7 +108,7 @@ class TestDecodings(unittest.TestCase):
         conf.COMMANDS.ffmpeg = '/bin/true'
         decodings = rd.Decode(conf, [])
 
-        proc = decodings.spawn(rd.Fileinfo('20150816.mp3.flv',
+        proc = decodings.spawn(rd.Fileinfo('20150816.flv',
                                rd.Ftypes.FLV))
         self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp3',
                          rd.Ftypes.MP3))
@@ -127,7 +127,7 @@ class TestDecodings(unittest.TestCase):
         decodings = rd.Decode(conf, [])
 
         os.chdir(os.path.dirname(__file__))
-        ret = decodings.spawn(rd.Fileinfo('existing_file.flv.flv', rd.Ftypes.FLV))
+        ret = decodings.spawn(rd.Fileinfo('existing_file.flv', rd.Ftypes.FLV))
         self.assertEqual(ret, None)
 
     def test_finished_mp3(self):
@@ -135,7 +135,7 @@ class TestDecodings(unittest.TestCase):
         conf.COMMANDS.ffmpeg = '/bin/true'
         decodings = rd.Decode(conf, [])
 
-        proc = decodings.spawn(rd.Fileinfo('20150816.mp3.flv',
+        proc = decodings.spawn(rd.Fileinfo('20150816.flv',
                                rd.Ftypes.FLV))
         self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp3',
                          rd.Ftypes.MP3))

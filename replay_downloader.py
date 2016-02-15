@@ -280,7 +280,7 @@ class Download:
         download_type = file_info.type
 
         if (download_type is Rtypes.RTMP):
-            res_file = self.destination + remote_file_name + '.flv'
+            res_file = self.destination + remove_ext(remote_file_name) + '.flv'
             res_type = Ftypes.FLV
             command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live",
                        "--rtmp", self.conf.RTMP.replay_rtmp + "/" +
@@ -378,7 +378,7 @@ class Decode:
     def spawn(self, file_info: Fileinfo) -> Procinfo:
         local_file_name = file_info.path
         file_type = file_info.type
-        res_file = self.destination + os.path.splitext(local_file_name)[0]
+        res_file = self.destination + remove_ext(file_info.path) + '.mp3'
 
         if (file_type is not Ftypes.FLV):
             return None
@@ -428,6 +428,11 @@ class Decode:
 
 
 _LOGFILE = None
+
+
+def remove_ext(filename: str):
+    fname, fext = os.path.splitext(filename)
+    return fname if (len(fext) == 4) else fname + fext
 
 
 def log_init(logfile: str):
