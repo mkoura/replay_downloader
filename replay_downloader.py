@@ -667,9 +667,10 @@ if __name__ == "__main__":
                 if proc.poll() is None:
                     proc.kill()
 
-                fpath = procinfo.file_record().path
+                filepath = procinfo.file_record().path
                 try:
-                    os.rename(fpath, fpath + ".part")
+                    os.rename(filepath, filepath + ".part")
+                    logit("[rename] " + filepath + ".part", logging.error)
                 except FileNotFoundError as e:
                     print(str(e), file=sys.stderr)
 
