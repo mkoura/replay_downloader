@@ -308,8 +308,10 @@ class Download:
             command = [self.conf.COMMANDS.ffmpeg, "-i",
                        remote_file_name, "-c", "copy", res_file]
         else:
-            self.out[MsgTypes.errors].add("Unrecognized download type for " +
+            self.out[MsgTypes.errors].add("ERROR: download failed, " +
+                                          "unsupported download type for : " +
                                           remote_file_name)
+            self.out[MsgTypes.failed].add("" + res_file)
             return None
 
         if os.path.isfile(res_file):
@@ -396,6 +398,8 @@ class Decode:
         res_file = self.destination + remove_ext(local_file_name) + '.mp3'
 
         if (file_type is not Ftypes.FLV):
+            # no need to do anything, passing for further processing
+            self.finished_ready.append(file_record)
             return None
         elif os.path.isfile(res_file):
             self.out[MsgTypes.errors].add("WARNING: skipping decoding, " +
