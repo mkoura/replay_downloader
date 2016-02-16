@@ -311,7 +311,7 @@ class Download:
             self.out[MsgTypes.errors].add("ERROR: download failed, " +
                                           "unsupported download type for : " +
                                           remote_file_name)
-            self.out[MsgTypes.failed].add("" + res_file)
+            self.out[MsgTypes.failed].add("" + remote_file_name)
             return None
 
         if os.path.isfile(res_file):
