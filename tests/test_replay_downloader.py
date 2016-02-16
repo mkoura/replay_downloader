@@ -10,11 +10,11 @@ import replay_downloader as rd
 class TestDownloads(unittest.TestCase):
     def test_parse_todownload_list(self):
         l = [' # foo', 'bar', 'http://baz', ' foo1', 'http://bar1 ']
-        self.assertEqual(rd.Download.parse_todownload_list(l),
-                         [rd.Fileinfo(path='bar', type=rd.Rtypes.RTMP),
-                          rd.Fileinfo(path='http://baz', type=rd.Rtypes.HTTP),
-                          rd.Fileinfo(path='foo1', type=rd.Rtypes.RTMP),
-                          rd.Fileinfo(path='http://bar1', type=rd.Rtypes.HTTP)])
+        down_list = rd.Download.parse_todownload_list(l)
+        self.assertEqual(down_list[0](), rd.Fileinfo(path='bar', type=rd.Rtypes.RTMP))
+        self.assertEqual(down_list[1](), rd.Fileinfo(path='http://baz', type=rd.Rtypes.HTTP))
+        self.assertEqual(down_list[2](), rd.Fileinfo(path='foo1', type=rd.Rtypes.RTMP))
+        self.assertEqual(down_list[3](), rd.Fileinfo(path='http://bar1', type=rd.Rtypes.HTTP))
 
     def test_set_destdir(self):
         conf = rd.Config()
@@ -48,17 +48,21 @@ class TestDownloads(unittest.TestCase):
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 
-        proc = downloads.spawn(rd.Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
-                               rd.Rtypes.HTTP))
-        self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp4',
-                         rd.Ftypes.MP4))
+        file_record = rd.FileRecord(rd.Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
+                                                rd.Rtypes.HTTP))
+        proc = downloads.spawn(file_record)
+        self.assertEqual(file_record(), rd.Fileinfo('20150816.mp4',
+                                                    rd.Ftypes.MP4,
+                                                    'Download'))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, file_record))
 
     def test_spawn_unknown_type(self):
         conf = rd.Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 
-        ret = downloads.spawn(rd.Fileinfo('foo', 20))
+        file_record = rd.FileRecord(rd.Fileinfo('foo', 20))
+        ret = downloads.spawn(file_record)
         self.assertEqual(ret, None)
 
     def test_spawn_file_exists(self):
@@ -67,7 +71,8 @@ class TestDownloads(unittest.TestCase):
         downloads = rd.Download(conf, [])
 
         os.chdir(os.path.dirname(__file__))
-        ret = downloads.spawn(rd.Fileinfo('existing_file', rd.Rtypes.RTMP))
+        file_record = rd.FileRecord(rd.Fileinfo('existing_file', rd.Rtypes.RTMP))
+        ret = downloads.spawn(file_record)
         self.assertEqual(ret, None)
 
     def test_finished_rtmp(self):
@@ -75,17 +80,18 @@ class TestDownloads(unittest.TestCase):
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = rd.Download(conf, [])
 
-        proc = downloads.spawn(rd.Fileinfo('foo', rd.Rtypes.RTMP))
-        self.assertEqual(proc, rd.Procinfo(proc.proc_o, 'foo.flv',
-                                           rd.Ftypes.FLV))
+        file_record = rd.FileRecord(rd.Fileinfo('foo', rd.Rtypes.RTMP))
+        proc = downloads.spawn(file_record)
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, file_record))
+        self.assertEqual(file_record._rec, [rd.Fileinfo('foo', rd.Rtypes.RTMP),
+                                            rd.Fileinfo('foo.flv', rd.Ftypes.FLV, 'Download')])
         while (proc.proc_o.proc.poll() is None):
             time.sleep(0.05)
 
         ret = downloads.finished_handler(proc)
         self.assertEqual(ret, 0)
         self.assertEqual(downloads.out[rd.MsgTypes.finished].msglist[0][0], 'foo.flv')
-        self.assertEqual(downloads.finished_ready[0],
-                         rd.Fileinfo('foo.flv', rd.Ftypes.FLV))
+        self.assertEqual(downloads.finished_ready[0], file_record)
 
 
 class TestDecodings(unittest.TestCase):
@@ -108,17 +114,21 @@ class TestDecodings(unittest.TestCase):
         conf.COMMANDS.ffmpeg = '/bin/true'
         decodings = rd.Decode(conf, [])
 
-        proc = decodings.spawn(rd.Fileinfo('20150816.flv',
-                               rd.Ftypes.FLV))
-        self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp3',
-                         rd.Ftypes.MP3))
+        file_record = rd.FileRecord(rd.Fileinfo('20150816.flv',
+                                                rd.Ftypes.FLV))
+        proc = decodings.spawn(file_record)
+        self.assertEqual(file_record(), rd.Fileinfo('20150816.mp3',
+                                                    rd.Ftypes.MP3,
+                                                    'Decode'))
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, file_record))
 
     def test_spawn_unknown_type(self):
         conf = rd.Config()
         conf.COMMANDS.ffmpeg = '/bin/true'
         decodings = rd.Decode(conf, [])
 
-        ret = decodings.spawn(rd.Fileinfo('20150816.mp3', 'mp3'))
+        file_record = rd.FileRecord(rd.Fileinfo('20150816.mp3', 'mp3'))
+        ret = decodings.spawn(file_record)
         self.assertEqual(ret, None)
 
     def test_spawn_file_exists(self):
@@ -127,7 +137,8 @@ class TestDecodings(unittest.TestCase):
         decodings = rd.Decode(conf, [])
 
         os.chdir(os.path.dirname(__file__))
-        ret = decodings.spawn(rd.Fileinfo('existing_file.flv', rd.Ftypes.FLV))
+        file_record = rd.FileRecord(rd.Fileinfo('existing_file.flv', rd.Ftypes.FLV))
+        ret = decodings.spawn(file_record)
         self.assertEqual(ret, None)
 
     def test_finished_mp3(self):
@@ -135,15 +146,15 @@ class TestDecodings(unittest.TestCase):
         conf.COMMANDS.ffmpeg = '/bin/true'
         decodings = rd.Decode(conf, [])
 
-        proc = decodings.spawn(rd.Fileinfo('20150816.flv',
-                               rd.Ftypes.FLV))
-        self.assertEqual(proc, rd.Procinfo(proc.proc_o, '20150816.mp3',
-                         rd.Ftypes.MP3))
+        file_record = rd.FileRecord(rd.Fileinfo('20150816.flv', rd.Ftypes.FLV))
+        proc = decodings.spawn(file_record)
+        self.assertEqual(proc, rd.Procinfo(proc.proc_o, file_record))
+        self.assertEqual(file_record._rec, [rd.Fileinfo('20150816.flv', rd.Ftypes.FLV),
+                                            rd.Fileinfo('20150816.mp3', rd.Ftypes.MP3, 'Decode')])
         while (proc.proc_o.proc.poll() is None):
             time.sleep(0.05)
 
         ret = decodings.finished_handler(proc)
         self.assertEqual(ret, 0)
         self.assertEqual(decodings.out[rd.MsgTypes.finished].msglist[0][0], '20150816.mp3')
-        self.assertEqual(decodings.finished_ready[0],
-                         rd.Fileinfo('20150816.mp3', rd.Ftypes.MP3))
+        self.assertEqual(decodings.finished_ready[0], file_record)

@@ -17,8 +17,10 @@ from requests import session
 from subprocess import Popen, PIPE
 
 
-Fileinfo = collections.namedtuple('Fileinfo', 'path type')
-Procinfo = collections.namedtuple('Procinfo', 'proc_o path type')
+Fileinfo = collections.namedtuple('Fileinfo', 'path type clname')
+Fileinfo.__new__.__defaults__ = ('',)
+# proc_o is instance of Proc, file_record is instance of FileRecord
+Procinfo = collections.namedtuple('Procinfo', 'proc_o file_record')
 
 
 class Rtypes(Enum):
@@ -235,6 +237,17 @@ class Proc:
         self.proc = proc
 
 
+class FileRecord:
+    def __init__(self, rec: Fileinfo):
+        self._rec = [rec]
+
+    def add(self, rec: Fileinfo):
+        self._rec.append(rec)
+
+    def __call__(self) -> Fileinfo:
+        return self._rec[-1] if len(self._rec) != 0 else None
+
+
 class Download:
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
@@ -257,9 +270,9 @@ class Download:
             elif line.startswith('#'):
                 continue
             elif line.startswith("http://"):
-                retlist.append(Fileinfo(line, Rtypes.HTTP))
+                retlist.append(FileRecord(Fileinfo(line, Rtypes.HTTP)))
             else:
-                retlist.append(Fileinfo(line, Rtypes.RTMP))
+                retlist.append(FileRecord(Fileinfo(line, Rtypes.RTMP)))
 
         return retlist
 
@@ -275,9 +288,9 @@ class Download:
             if not os.path.isdir(destdir):
                 raise
 
-    def spawn(self, file_info: Fileinfo) -> Procinfo:
-        remote_file_name = file_info.path
-        download_type = file_info.type
+    def spawn(self, file_record: FileRecord) -> Procinfo:
+        remote_file_name = file_record().path
+        download_type = file_record().type
 
         if (download_type is Rtypes.RTMP):
             res_file = self.destination + remove_ext(remote_file_name) + '.flv'
@@ -303,19 +316,21 @@ class Download:
             self.out[MsgTypes.errors].add("WARNING: skipping download, " +
                                           "file exists: " + res_file)
             self.out[MsgTypes.skipped].add("" + res_file)
-            self.finished_ready.append((res_file, res_type))
+            file_record.add(Fileinfo(res_file, res_type, type(self).__name__))
+            self.finished_ready.append(file_record)
             return None
         else:
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             self.out[MsgTypes.active].add("" + res_file)
             proc = Proc(p)
 
-        return Procinfo(proc, res_file, res_type)
+        file_record.add(Fileinfo(res_file, res_type, type(self).__name__))
+        return Procinfo(proc, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
         proc_o = procinfo.proc_o
-        filepath = procinfo.path
-        filetype = procinfo.type
+        filepath = procinfo.file_record().path
+        filetype = procinfo.file_record().type
         proc = proc_o.proc
         retcode = proc.poll()
 
@@ -337,7 +352,7 @@ class Download:
 
         if (retcode == 0):
             self.out[MsgTypes.finished].add("" + filepath)
-            self.finished_ready.append(Fileinfo(filepath, filetype))
+            self.finished_ready.append(procinfo.file_record)
         else:
             try:
                 os.rename(filepath, filepath + ".part")
@@ -375,10 +390,10 @@ class Decode:
                 raise
         self.destination = destdir
 
-    def spawn(self, file_info: Fileinfo) -> Procinfo:
-        local_file_name = file_info.path
-        file_type = file_info.type
-        res_file = self.destination + remove_ext(file_info.path) + '.mp3'
+    def spawn(self, file_record: list) -> Procinfo:
+        local_file_name = file_record().path
+        file_type = file_record().type
+        res_file = self.destination + remove_ext(local_file_name) + '.mp3'
 
         if (file_type is not Ftypes.FLV):
             return None
@@ -386,6 +401,8 @@ class Decode:
             self.out[MsgTypes.errors].add("WARNING: skipping decoding, " +
                                           "file exists: " + res_file)
             self.out[MsgTypes.skipped].add("" + res_file)
+            file_record.add(Fileinfo(res_file, Ftypes.MP3, type(self).__name__))
+            self.finished_ready.append(file_record)
             return None
         else:
             p = Popen([self.conf.COMMANDS.ffmpeg, "-i",
@@ -394,12 +411,12 @@ class Decode:
             self.out[MsgTypes.active].add("" + res_file)
             proc = Proc(p)
 
-        return Procinfo(proc, res_file, Ftypes.MP3)
+        file_record.add(Fileinfo(res_file, Ftypes.MP3, type(self).__name__))
+        return Procinfo(proc, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
         proc_o = procinfo.proc_o
-        filepath = procinfo.path
-        filetype = procinfo.type
+        filepath = procinfo.file_record().path
         proc = proc_o.proc
         retcode = proc.poll()
 
@@ -413,7 +430,7 @@ class Decode:
 
         if (retcode == 0):
             self.out[MsgTypes.finished].add("" + filepath)
-            self.finished_ready.append(Fileinfo(filepath, filetype))
+            self.finished_ready.append(procinfo.file_record)
         else:
             try:
                 os.remove(filepath)
@@ -645,8 +662,10 @@ if __name__ == "__main__":
                 proc = procinfo.proc_o.proc
                 if proc.poll() is None:
                     proc.kill()
+
+                fpath = procinfo.file_record().path
                 try:
-                    os.rename(procinfo.path, procinfo.path + ".part")
+                    os.rename(fpath, fpath + ".part")
                 except FileNotFoundError as e:
                     print(str(e), file=sys.stderr)
 
