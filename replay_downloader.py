@@ -245,7 +245,7 @@ class FileRecord:
         self._rec.append(rec)
 
     def __call__(self) -> Fileinfo:
-        return self._rec[-1] if len(self._rec) != 0 else None
+        return self._rec[-1]
 
 
 class Download:
