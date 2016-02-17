@@ -218,7 +218,7 @@ class Msgs:
         def _print(key):
             for li in self.get_msglists_with_key(key):
                 num = len(li.msglist)
-                if (num > 0):
+                if num > 0:
                     print("" + li.text + " " + str(num) + " file(s):")
                     for f in li.msglist:
                         print("    " + f[0])
@@ -290,7 +290,7 @@ class Download:
         remote_file_name = file_record().path
         download_type = file_record().type
 
-        if (download_type is Rtypes.RTMP):
+        if download_type is Rtypes.RTMP:
             res_file = self.destination + remove_ext(remote_file_name) + '.flv'
             res_type = Ftypes.FLV
             command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live",
@@ -299,7 +299,7 @@ class Download:
                        self.conf.RTMP.referer, "--swfUrl",
                        self.conf.RTMP.replay_url, "--swfVfy",
                        self.conf.RTMP.player_url, "--flv", res_file]
-        elif (download_type is Rtypes.HTTP):
+        elif download_type is Rtypes.HTTP:
             fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
             res_file = self.destination + fname.group(1)
             res_type = Ftypes.MP4
@@ -350,7 +350,7 @@ class Download:
                     retcode = 0
                     break
 
-        if (retcode == 0):
+        if retcode == 0:
             self.out[MsgTypes.finished].add("" + filepath)
             self.finished_ready.append(procinfo.file_record)
         else:
@@ -395,7 +395,7 @@ class Decode:
         file_type = file_record().type
         res_file = self.destination + remove_ext(local_file_name) + '.mp3'
 
-        if (file_type is not Ftypes.FLV):
+        if file_type is not Ftypes.FLV:
             # no need to do anything, passing for further processing
             self.finished_ready.append(file_record)
             return None
@@ -430,7 +430,7 @@ class Decode:
             logit("[decode] stderr for " + filepath + ":", logging.error)
             logit(err.decode('utf-8'), logging.error)
 
-        if (retcode == 0):
+        if retcode == 0:
             self.out[MsgTypes.finished].add("" + filepath)
             self.finished_ready.append(procinfo.file_record)
         else:
@@ -451,7 +451,7 @@ _LOGFILE = None
 
 def remove_ext(filename: str):
     fname, fext = os.path.splitext(filename)
-    return fname if (len(fext) == 4) else fname + fext
+    return fname if len(fext) == 4 else fname + fext
 
 
 def log_init(logfile: str):
@@ -506,7 +506,7 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
                 if m:
                     print(m.group(1), file=desc)
 
-    if (outfile == '-'):
+    if outfile == '-':
         _get_session(sys.stdout)
     else:
         if append is True:
@@ -560,7 +560,7 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(1)
 
-    if (args.config_file is not None):
+    if args.config_file is not None:
         cflist = (args.config_file)
     else:
         cflist = ('replay_downloader.ini',
@@ -576,7 +576,7 @@ if __name__ == "__main__":
             pass
 
     if config_file == '':
-        if (args.config_file is not None):
+        if args.config_file is not None:
             print("Error: cannot open config file '" + args.config_file + "'",
                   file=sys.stderr)
         else:
@@ -585,22 +585,22 @@ if __name__ == "__main__":
 
     conf = Config(config_file)
 
-    if (args.get_avail is not None):
+    if args.get_avail is not None:
         get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
         sys.exit(retval)
-    elif (args.get_avail_mobile is not None):
+    elif args.get_avail_mobile is not None:
         get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
         sys.exit(retval)
-    elif (args.append is True):
+    elif args.append is True:
         parser.print_help()
         print("\n-a (--append) allowed only in combination with " +
               "-l (--get-avail) and -k (--get-avail-mobile)", file=sys.stderr)
         sys.exit(1)
 
     msg = Msgs()
-    if (args.brief):
+    if args.brief:
         msg_handler = msg.print_dots
-    elif (args.quiet):
+    elif args.quiet:
         msg_handler = msg.print_dummy
     else:
         msg_handler = msg.print
@@ -610,9 +610,9 @@ if __name__ == "__main__":
 
     log_init(args.logfile)
 
-    if (args.get_list is not None):
+    if args.get_list is not None:
         downloads_list = get_list_from_file(args.get_list)
-    elif (args.download_file is not None):
+    elif args.download_file is not None:
         downloads_list = [args.download_file]
 
     avail_slots = args.concurrent if args.concurrent > 0 \
