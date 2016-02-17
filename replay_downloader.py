@@ -115,9 +115,7 @@ class Scheduler:
         return(len(self.running_procs) == 0)
 
     def __call__(self) -> bool:
-        s = self._spawn()
-        c = self._check_running_procs()
-        return(s and c)
+        return all((self._spawn(), self._check_running_procs()))
 
     def get_scheduled_obj(self):
         return self.obj
