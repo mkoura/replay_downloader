@@ -18,6 +18,7 @@ from subprocess import Popen, PIPE
 
 
 Fileinfo = collections.namedtuple('Fileinfo', 'path type clname')
+# clname is optional
 Fileinfo.__new__.__defaults__ = ('',)
 # proc_o is instance of Proc, file_record is instance of FileRecord
 Procinfo = collections.namedtuple('Procinfo', 'proc_o file_record')
