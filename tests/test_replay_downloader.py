@@ -18,7 +18,7 @@ from replay_downloader import (
     # Proc,
     FileRecord,
     Download,
-    Decode,
+    ExtractAudio,
     # remove_ext,
     # log_init,
     # logit,
@@ -72,9 +72,8 @@ class TestDownloads(unittest.TestCase):
         file_record = FileRecord(Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
                                           Rtypes.HTTP))
         proc = downloads.spawn(file_record)
-        self.assertEqual(file_record(), Fileinfo('20150816.mp4',
-                                                 Ftypes.MP4,
-                                                 'Download'))
+        self.assertEqual(file_record(), Fileinfo('20150816.mp4', Ftypes.MP4,
+                                                 'Download', Ftypes.AAC))
         self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
 
     def test_spawn_unknown_type(self):
@@ -105,7 +104,8 @@ class TestDownloads(unittest.TestCase):
         proc = downloads.spawn(file_record)
         self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
         self.assertEqual(file_record._rec, [Fileinfo('foo', Rtypes.RTMP),
-                                            Fileinfo('foo.flv', Ftypes.FLV, 'Download')])
+                                            Fileinfo('foo.flv', Ftypes.FLV,
+                                                     'Download', Ftypes.MP3)])
         while (proc.proc_o.proc.poll() is None):
             time.sleep(0.05)
 
@@ -118,11 +118,11 @@ class TestDownloads(unittest.TestCase):
 class TestDecodings(unittest.TestCase):
     def test_set_destdir(self):
         conf = Config()
-        decodings = Decode(conf, [])
+        extracting = ExtractAudio(conf, [])
         destdir = 'destdir'
 
-        decodings.set_destdir(destdir)
-        self.assertEqual(decodings.destination, destdir)
+        extracting.set_destdir(destdir)
+        self.assertEqual(extracting.destination, destdir)
         self.assertTrue(os.path.isdir(destdir))
         try:
             os.rmdir(destdir)
@@ -133,49 +133,54 @@ class TestDecodings(unittest.TestCase):
     def test_spawn(self):
         conf = Config()
         conf.COMMANDS.ffmpeg = '/bin/true'
-        decodings = Decode(conf, [])
+        extracting = ExtractAudio(conf, [])
 
-        file_record = FileRecord(Fileinfo('20150816.flv',
-                                          Ftypes.FLV))
-        proc = decodings.spawn(file_record)
+        file_record = FileRecord(Fileinfo('20150816.flv', Ftypes.FLV,
+                                          audio_f=Ftypes.MP3))
+        proc = extracting.spawn(file_record)
         self.assertEqual(file_record(), Fileinfo('20150816.mp3',
                                                  Ftypes.MP3,
-                                                 'Decode'))
+                                                 'ExtractAudio',
+                                                 Ftypes.MP3))
         self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
 
-    def test_spawn_unknown_type(self):
+    def test_spawn_same_type(self):
         conf = Config()
         conf.COMMANDS.ffmpeg = '/bin/true'
-        decodings = Decode(conf, [])
+        extracting = ExtractAudio(conf, [])
 
-        file_record = FileRecord(Fileinfo('20150816.mp3', 'mp3'))
-        ret = decodings.spawn(file_record)
+        file_record = FileRecord(Fileinfo('20150816.mp3', 'mp3', audio_f='mp3'))
+        ret = extracting.spawn(file_record)
         self.assertEqual(ret, None)
 
     def test_spawn_file_exists(self):
         conf = Config()
         conf.COMMANDS.ffmpeg = '/bin/true'
-        decodings = Decode(conf, [])
+        extracting = ExtractAudio(conf, [])
 
         os.chdir(os.path.dirname(__file__))
-        file_record = FileRecord(Fileinfo('existing_file.flv', Ftypes.FLV))
-        ret = decodings.spawn(file_record)
+        file_record = FileRecord(Fileinfo('existing_file.flv', Ftypes.FLV,
+                                          audio_f=Ftypes.MP3))
+        ret = extracting.spawn(file_record)
         self.assertEqual(ret, None)
 
     def test_finished_mp3(self):
         conf = Config()
         conf.COMMANDS.ffmpeg = '/bin/true'
-        decodings = Decode(conf, [])
+        extracting = ExtractAudio(conf, [])
 
-        file_record = FileRecord(Fileinfo('20150816.flv', Ftypes.FLV))
-        proc = decodings.spawn(file_record)
+        file_record = FileRecord(Fileinfo('20150816.flv', Ftypes.FLV,
+                                          audio_f=Ftypes.MP3))
+        proc = extracting.spawn(file_record)
         self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
-        self.assertEqual(file_record._rec, [Fileinfo('20150816.flv', Ftypes.FLV),
-                                            Fileinfo('20150816.mp3', Ftypes.MP3, 'Decode')])
+        self.assertEqual(file_record._rec, [Fileinfo('20150816.flv', Ftypes.FLV,
+                                                     audio_f=Ftypes.MP3),
+                                            Fileinfo('20150816.mp3', Ftypes.MP3,
+                                                     'ExtractAudio', Ftypes.MP3)])
         while (proc.proc_o.proc.poll() is None):
             time.sleep(0.05)
 
-        ret = decodings.finished_handler(proc)
+        ret = extracting.finished_handler(proc)
         self.assertEqual(ret, 0)
-        self.assertEqual(decodings.out[MsgTypes.finished].msglist[0][0], '20150816.mp3')
-        self.assertEqual(decodings.finished_ready[0], file_record)
+        self.assertEqual(extracting.out[MsgTypes.finished].msglist[0][0], '20150816.mp3')
+        self.assertEqual(extracting.finished_ready[0], file_record)

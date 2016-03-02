@@ -17,9 +17,9 @@ from requests import session
 from subprocess import Popen, PIPE
 
 
-Fileinfo = collections.namedtuple('Fileinfo', 'path type clname')
-# clname is optional
-Fileinfo.__new__.__defaults__ = ('',)
+Fileinfo = collections.namedtuple('Fileinfo', 'path type clname audio_f video_f')
+# clname, audio_f and video_f are optional
+Fileinfo.__new__.__defaults__ = ('', '', '')
 # proc_o is instance of Proc, file_record is instance of FileRecord
 Procinfo = collections.namedtuple('Procinfo', 'proc_o file_record')
 
@@ -34,6 +34,14 @@ class Ftypes(Enum):
     MP3 = 1
     AAC = 2
     MP4 = 3
+
+
+file_ext_d = {
+    Ftypes.FLV.name: 'flv',
+    Ftypes.MP3.name: 'mp3',
+    Ftypes.AAC.name: 'aac',
+    Ftypes.MP4.name: 'mp4',
+}
 
 
 class MsgTypes(Enum):
@@ -294,6 +302,7 @@ class Download:
         if download_type is Rtypes.RTMP:
             res_file = self.destination + remove_ext(remote_file_name) + '.flv'
             res_type = Ftypes.FLV
+            audio_format = Ftypes.MP3
             command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live",
                        "--rtmp", self.conf.RTMP.replay_rtmp + "/" +
                        remote_file_name, "--pageUrl",
@@ -304,6 +313,7 @@ class Download:
             fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
             res_file = self.destination + fname.group(1)
             res_type = Ftypes.MP4
+            audio_format = Ftypes.AAC
             command = [self.conf.COMMANDS.ffmpeg, "-i",
                        remote_file_name, "-c", "copy", res_file]
         else:
@@ -312,12 +322,14 @@ class Download:
                                           remote_file_name)
             self.out[MsgTypes.failed].add("" + remote_file_name)
             return None
+        cur_fileinfo = Fileinfo(res_file, res_type, clname=type(self).__name__,
+                                audio_f=audio_format)
 
         if os.path.isfile(res_file):
             self.out[MsgTypes.errors].add("WARNING: skipping download, " +
                                           "file exists: " + res_file)
             self.out[MsgTypes.skipped].add("" + res_file)
-            file_record.add(Fileinfo(res_file, res_type, type(self).__name__))
+            file_record.add(cur_fileinfo)
             self.finished_ready.append(file_record)
             return None
         else:
@@ -325,7 +337,7 @@ class Download:
             self.out[MsgTypes.active].add("" + res_file)
             proc = Proc(p)
 
-        file_record.add(Fileinfo(res_file, res_type, type(self).__name__))
+        file_record.add(cur_fileinfo)
         return Procinfo(proc, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
@@ -367,13 +379,13 @@ class Download:
         return retcode
 
 
-class Decode:
+class ExtractAudio:
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
-        self.out = {MsgTypes.active: MsgList("Decoding"),
-                    MsgTypes.finished: MsgList("Decoded"),
-                    MsgTypes.skipped: MsgList("Skipped decoding of"),
-                    MsgTypes.failed: MsgList("Failed to decode"),
+        self.out = {MsgTypes.active: MsgList("Extracting audio"),
+                    MsgTypes.finished: MsgList("Audio extracted"),
+                    MsgTypes.skipped: MsgList("Skipped extracting audio of"),
+                    MsgTypes.failed: MsgList("Failed to extract audio"),
                     MsgTypes.errors: MsgList()}
         self.destination = ''
         self.finished_ready = []
@@ -394,17 +406,28 @@ class Decode:
     def spawn(self, file_record: list) -> Procinfo:
         local_file_name = file_record().path
         file_type = file_record().type
-        res_file = self.destination + remove_ext(local_file_name) + '.mp3'
+        audio_format = file_record().audio_f
+        if audio_format == '':
+            self.out[MsgTypes.errors].add("ERROR: failed to extract, " +
+                                          "audio format info not passed for " +
+                                          local_file_name)
+            self.out[MsgTypes.failed].add("" + local_file_name)
+            return None
 
-        if file_type is not Ftypes.FLV:
+        if file_type == audio_format:
             # no need to do anything, passing for further processing
             self.finished_ready.append(file_record)
             return None
-        elif os.path.isfile(res_file):
-            self.out[MsgTypes.errors].add("WARNING: skipping decoding, " +
+
+        res_file = self.destination + remove_ext(local_file_name) + '.' + \
+            file_ext_d[audio_format.name]
+        cur_fileinfo = Fileinfo(res_file, audio_format, clname=type(self).__name__,
+                                audio_f=audio_format)
+        if os.path.isfile(res_file):
+            self.out[MsgTypes.errors].add("WARNING: skipping extracting, " +
                                           "file exists: " + res_file)
             self.out[MsgTypes.skipped].add("" + res_file)
-            file_record.add(Fileinfo(res_file, Ftypes.MP3, type(self).__name__))
+            file_record.add(cur_fileinfo)
             self.finished_ready.append(file_record)
             return None
         else:
@@ -414,7 +437,7 @@ class Decode:
             self.out[MsgTypes.active].add("" + res_file)
             proc = Proc(p)
 
-        file_record.add(Fileinfo(res_file, Ftypes.MP3, type(self).__name__))
+        file_record.add(cur_fileinfo)
         return Procinfo(proc, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
@@ -425,10 +448,10 @@ class Decode:
 
         (out, err) = proc.communicate()
         if out:
-            logit("[decode] stdout for " + filepath + ":")
+            logit("[extracting] stdout for " + filepath + ":")
             logit(out.decode('utf-8'))
         if err:
-            logit("[decode] stderr for " + filepath + ":", logging.error)
+            logit("[extracting] stderr for " + filepath + ":", logging.error)
             logit(err.decode('utf-8'), logging.error)
 
         if retcode == 0:
@@ -441,7 +464,7 @@ class Decode:
             except FileNotFoundError as e:
                 self.out[MsgTypes.errors].add(str(e))
             self.out[MsgTypes.failed].add("" + filepath)
-            self.out[MsgTypes.errors].add("Error decoding " + filepath +
+            self.out[MsgTypes.errors].add("Error extracting " + filepath +
                                           ": " + err.decode('utf-8'))
 
         return retcode
@@ -625,11 +648,11 @@ if __name__ == "__main__":
     downloads_scheduler.avail_slots = avail_slots
     schedulers.add(downloads_scheduler)
 
-    decodings = Decode(conf, downloads.finished_ready)
-    decodings.set_destdir(args.destination)
-    decodings_scheduler = Scheduler(decodings)
-    decodings_scheduler.avail_slots = avail_slots
-    schedulers.add(decodings_scheduler)
+    extracting = ExtractAudio(conf, downloads.finished_ready)
+    extracting.set_destdir(args.destination)
+    extracting_scheduler = Scheduler(extracting)
+    extracting_scheduler.avail_slots = avail_slots
+    schedulers.add(extracting_scheduler)
 
     try:
         done = False
