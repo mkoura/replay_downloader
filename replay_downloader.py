@@ -199,7 +199,7 @@ class Msgs:
     def _print_new(self, key: str, out=sys.stdout):
         for msglist in self.get_msglists_with_key(key):
             for msg in msglist.get_new():
-                print("" + msglist.text + " " + msg, file=out)
+                print(str(msglist.text + " " + msg).strip(), file=out)
 
     def print_errors(self):
         self._print_new(MsgTypes.errors, sys.stderr)
