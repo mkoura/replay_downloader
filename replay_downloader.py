@@ -415,7 +415,7 @@ class ExtractAudio:
             return None
 
         if file_type == audio_format:
-            # no need to do anything, passing for further processing
+            # nothing to do, passing for further processing
             self.finished_ready.append(file_record)
             return None
 
