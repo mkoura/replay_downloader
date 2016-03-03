@@ -95,7 +95,7 @@ class Config:
         self.HTTP.list_regex = self.cfg['HTTP']['list_regex']
 
 
-class Scheduler:
+class ProcScheduler:
     def __init__(self, schedulable_obj):
         self.avail_slots = 3
         self.running_procs = []
@@ -130,13 +130,13 @@ class Scheduler:
         return self.obj
 
 
-class Schedulers():
+class Scheduled():
     def __init__(self):
         self.pipeline = []
         self.scheduled_objs = []
         self.on_update_hooks = []
 
-    def add(self, scheduler: Scheduler):
+    def add(self, scheduler: ProcScheduler):
         self.pipeline.append(scheduler)
         self.scheduled_objs.append(scheduler.get_scheduled_obj())
         for h in self.on_update_hooks:
@@ -183,8 +183,8 @@ class Msgs:
         self._combined_outlist.extend(self._outlist)
         self._combined_outlist.extend(self._scheduled_outlist)
 
-    def schedulers_update_hook(self, schedulers: Schedulers):
-        self._scheduled_outlist = [l.out for l in schedulers.scheduled_objs
+    def schedulers_update_hook(self, scheduled: Scheduled):
+        self._scheduled_outlist = [l.out for l in scheduled.scheduled_objs
                                    if hasattr(l, 'out')]
         del self._combined_outlist[:]
         self._combined_outlist.extend(self._outlist)
@@ -629,8 +629,8 @@ if __name__ == "__main__":
     else:
         msg_handler = msg.print
 
-    schedulers = Schedulers()
-    schedulers.on_update_hooks.append(msg.schedulers_update_hook)
+    scheduled = Scheduled()
+    scheduled.on_update_hooks.append(msg.schedulers_update_hook)
 
     log_init(args.logfile)
 
@@ -644,22 +644,22 @@ if __name__ == "__main__":
 
     to_download = Download.parse_todownload_list(downloads_list)
     downloads = Download(conf, to_download)
-    downloads_scheduler = Scheduler(downloads)
+    downloads_scheduler = ProcScheduler(downloads)
     downloads_scheduler.avail_slots = avail_slots
-    schedulers.add(downloads_scheduler)
+    scheduled.add(downloads_scheduler)
 
     extracting = ExtractAudio(conf, downloads.finished_ready)
     extracting.set_destdir(args.destination)
-    extracting_scheduler = Scheduler(extracting)
+    extracting_scheduler = ProcScheduler(extracting)
     extracting_scheduler.avail_slots = avail_slots
-    schedulers.add(extracting_scheduler)
+    scheduled.add(extracting_scheduler)
 
     try:
         done = False
 
         while not done:
             done = True
-            for s in schedulers.pipeline:
+            for s in scheduled.pipeline:
                 t = s()
                 if t is False:
                     done = False
@@ -683,7 +683,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print(" Interrupting running processes...")
         retval = 1
-        for l in schedulers.pipeline:
+        for l in scheduled.pipeline:
             for procinfo in l.running_procs:
                 proc = procinfo.proc_o.proc
                 if proc.poll() is None:
