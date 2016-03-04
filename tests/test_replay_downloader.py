@@ -32,9 +32,9 @@ class TestDownloads(unittest.TestCase):
     def test_parse_todownload_list(self):
         l = [' # foo', 'bar', 'http://baz', ' foo1', 'http://bar1 ']
         down_list = Download.parse_todownload_list(l)
-        self.assertEqual(down_list[0](), Fileinfo(path='bar', type=Rtypes.RTMP))
+        self.assertEqual(down_list[0](), Fileinfo(path='rtmp://bar', type=Rtypes.RTMP))
         self.assertEqual(down_list[1](), Fileinfo(path='http://baz', type=Rtypes.HTTP))
-        self.assertEqual(down_list[2](), Fileinfo(path='foo1', type=Rtypes.RTMP))
+        self.assertEqual(down_list[2](), Fileinfo(path='rtmp://foo1', type=Rtypes.RTMP))
         self.assertEqual(down_list[3](), Fileinfo(path='http://bar1', type=Rtypes.HTTP))
 
     def test_set_destdir(self):
@@ -91,7 +91,7 @@ class TestDownloads(unittest.TestCase):
         downloads = Download(conf, [])
 
         os.chdir(os.path.dirname(__file__))
-        file_record = FileRecord(Fileinfo('existing_file', Rtypes.RTMP))
+        file_record = FileRecord(Fileinfo('rtmp://existing_file', Rtypes.RTMP))
         ret = downloads.spawn(file_record)
         self.assertEqual(ret, None)
 
@@ -100,12 +100,12 @@ class TestDownloads(unittest.TestCase):
         conf.COMMANDS.rtmpdump = '/bin/true'
         downloads = Download(conf, [])
 
-        file_record = FileRecord(Fileinfo('foo', Rtypes.RTMP))
+        file_record = FileRecord(Fileinfo('rtmp://foo', Rtypes.RTMP))
         proc = downloads.spawn(file_record)
         self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
-        self.assertEqual(file_record._rec, [Fileinfo('foo', Rtypes.RTMP),
-                                            Fileinfo('foo.flv', Ftypes.FLV,
-                                                     'Download', Ftypes.MP3)])
+        self.assertEqual(file_record.rec, [Fileinfo('rtmp://foo', Rtypes.RTMP),
+                                           Fileinfo('foo.flv', Ftypes.FLV,
+                                                    'Download', Ftypes.MP3)])
         while (proc.proc_o.proc.poll() is None):
             time.sleep(0.05)
 
@@ -173,10 +173,10 @@ class TestDecodings(unittest.TestCase):
                                           audio_f=Ftypes.MP3))
         proc = extracting.spawn(file_record)
         self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
-        self.assertEqual(file_record._rec, [Fileinfo('20150816.flv', Ftypes.FLV,
-                                                     audio_f=Ftypes.MP3),
-                                            Fileinfo('20150816.mp3', Ftypes.MP3,
-                                                     'ExtractAudio', Ftypes.MP3)])
+        self.assertEqual(file_record.rec, [Fileinfo('20150816.flv', Ftypes.FLV,
+                                                    audio_f=Ftypes.MP3),
+                                           Fileinfo('20150816.mp3', Ftypes.MP3,
+                                                    'ExtractAudio', Ftypes.MP3)])
         while (proc.proc_o.proc.poll() is None):
             time.sleep(0.05)
 

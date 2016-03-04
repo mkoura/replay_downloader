@@ -126,21 +126,13 @@ class ProcScheduler:
     def __call__(self) -> bool:
         return all((self._spawn(), self._check_running_procs()))
 
-    def get_scheduled_obj(self):
-        return self.obj
 
-
-class Scheduled():
+class Work():
     def __init__(self):
         self.pipeline = []
-        self.scheduled_objs = []
-        self.on_update_hooks = []
 
-    def add(self, scheduler: ProcScheduler):
+    def add(self, scheduler):
         self.pipeline.append(scheduler)
-        self.scheduled_objs.append(scheduler.get_scheduled_obj())
-        for h in self.on_update_hooks:
-            h(self)
 
 
 class MsgList:
@@ -168,33 +160,12 @@ class Msgs:
     syms = ['.', '+', '*', '#']
     slen = len(syms)
 
-    def __init__(self):
-        self._outlist = []
-        self._scheduled_outlist = []
-        self._combined_outlist = []
-
     @staticmethod
     def print_dummy():
         pass
 
-    def add_to_outlist(self, new_msglist: MsgList):
-        self._outlist.append(new_msglist)
-        del self._combined_outlist[:]
-        self._combined_outlist.extend(self._outlist)
-        self._combined_outlist.extend(self._scheduled_outlist)
-
-    def schedulers_update_hook(self, scheduled: Scheduled):
-        self._scheduled_outlist = [l.out for l in scheduled.scheduled_objs
-                                   if hasattr(l, 'out')]
-        del self._combined_outlist[:]
-        self._combined_outlist.extend(self._outlist)
-        self._combined_outlist.extend(self._scheduled_outlist)
-
-    def get_outlist(self):
-        return self._combined_outlist
-
     def get_msglists_with_key(self, key: str):
-        return [d[key] for d in self._combined_outlist if key in d]
+        return [d[key] for d in _OUT if key in d]
 
     def _print_new(self, key: str, out=sys.stdout):
         for msglist in self.get_msglists_with_key(key):
@@ -246,13 +217,13 @@ class Proc:
 
 class FileRecord:
     def __init__(self, rec: Fileinfo):
-        self._rec = [rec]
+        self.rec = [rec]
 
     def add(self, rec: Fileinfo):
-        self._rec.append(rec)
+        self.rec.append(rec)
 
     def __call__(self) -> Fileinfo:
-        return self._rec[-1]
+        return self.rec[-1]
 
 
 class Download:
@@ -263,6 +234,7 @@ class Download:
                     MsgTypes.skipped: MsgList("Skipped download of"),
                     MsgTypes.failed: MsgList("Failed to download"),
                     MsgTypes.errors: MsgList()}
+        out_add(self.out)
         self.destination = ''
         self.finished_ready = []
         self.to_do = to_do
@@ -279,7 +251,7 @@ class Download:
             elif line.startswith("http://"):
                 retlist.append(FileRecord(Fileinfo(line, Rtypes.HTTP)))
             else:
-                retlist.append(FileRecord(Fileinfo(line, Rtypes.RTMP)))
+                retlist.append(FileRecord(Fileinfo('rtmp://' + line, Rtypes.RTMP)))
 
         return retlist
 
@@ -300,7 +272,8 @@ class Download:
         download_type = file_record().type
 
         if download_type is Rtypes.RTMP:
-            res_file = self.destination + remove_ext(remote_file_name) + '.flv'
+            # add destination, strip 'rtmp://', strip extension, append '.flv'
+            res_file = self.destination + remove_ext(remote_file_name[7:]) + '.flv'
             res_type = Ftypes.FLV
             audio_format = Ftypes.MP3
             command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live",
@@ -383,10 +356,11 @@ class ExtractAudio:
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Extracting audio"),
-                    MsgTypes.finished: MsgList("Audio extracted"),
+                    MsgTypes.finished: MsgList("Audio extracted from"),
                     MsgTypes.skipped: MsgList("Skipped extracting audio of"),
                     MsgTypes.failed: MsgList("Failed to extract audio"),
                     MsgTypes.errors: MsgList()}
+        out_add(self.out)
         self.destination = ''
         self.finished_ready = []
         self.to_do = to_do
@@ -470,7 +444,34 @@ class ExtractAudio:
         return retcode
 
 
+class Cleanup:
+    def __init__(self, to_do: list):
+        self.out = {MsgTypes.finished: MsgList("Deleted")}
+        out_add(self.out)
+        self.finished_ready = []
+        self.to_do = to_do
+
+    def __call__(self):
+        while len(self.to_do) != 0:
+            file_record = self.to_do.pop()
+            for p in file_record.rec[:-1]:
+                try:
+                    os.remove(p.path)
+                    logit("[cleanup] " + p.path)
+                    self.out[MsgTypes.finished].add("" + p.path)
+                except FileNotFoundError:
+                    pass
+            # pass for further processing
+            self.finished_ready.append(file_record)
+        return True
+
+
 _LOGFILE = None
+_OUT = []
+
+
+def out_add(out: dict):
+    _OUT.append(out)
 
 
 def remove_ext(filename: str):
@@ -629,8 +630,7 @@ if __name__ == "__main__":
     else:
         msg_handler = msg.print
 
-    scheduled = Scheduled()
-    scheduled.on_update_hooks.append(msg.schedulers_update_hook)
+    work = Work()
 
     log_init(args.logfile)
 
@@ -646,20 +646,23 @@ if __name__ == "__main__":
     downloads = Download(conf, to_download)
     downloads_scheduler = ProcScheduler(downloads)
     downloads_scheduler.avail_slots = avail_slots
-    scheduled.add(downloads_scheduler)
+    work.add(downloads_scheduler)
 
     extracting = ExtractAudio(conf, downloads.finished_ready)
     extracting.set_destdir(args.destination)
     extracting_scheduler = ProcScheduler(extracting)
     extracting_scheduler.avail_slots = avail_slots
-    scheduled.add(extracting_scheduler)
+    work.add(extracting_scheduler)
+
+    cleanup = Cleanup(extracting.finished_ready)
+    work.add(cleanup)
 
     try:
         done = False
 
         while not done:
             done = True
-            for s in scheduled.pipeline:
+            for s in work.pipeline:
                 t = s()
                 if t is False:
                     done = False
@@ -683,7 +686,9 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print(" Interrupting running processes...")
         retval = 1
-        for l in scheduled.pipeline:
+        for l in work.pipeline:
+            if not hasattr(l, 'running_procs'):
+                continue
             for procinfo in l.running_procs:
                 proc = procinfo.proc_o.proc
                 if proc.poll() is None:
