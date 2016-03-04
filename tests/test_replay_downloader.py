@@ -71,10 +71,10 @@ class TestDownloads(unittest.TestCase):
 
         file_record = FileRecord(Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
                                           Rtypes.HTTP))
-        proc = downloads.spawn(file_record)
+        proc_info = downloads.spawn(file_record)
         self.assertEqual(file_record(), Fileinfo('20150816.mp4', Ftypes.MP4,
                                                  'Download', Ftypes.AAC))
-        self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
+        self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
 
     def test_spawn_unknown_type(self):
         conf = Config()
@@ -101,15 +101,15 @@ class TestDownloads(unittest.TestCase):
         downloads = Download(conf, [])
 
         file_record = FileRecord(Fileinfo('rtmp://foo', Rtypes.RTMP))
-        proc = downloads.spawn(file_record)
-        self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
+        proc_info = downloads.spawn(file_record)
+        self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
         self.assertEqual(file_record.rec, [Fileinfo('rtmp://foo', Rtypes.RTMP),
                                            Fileinfo('foo.flv', Ftypes.FLV,
                                                     'Download', Ftypes.MP3)])
-        while (proc.proc_o.proc.poll() is None):
+        while (proc_info.proc.poll() is None):
             time.sleep(0.05)
 
-        ret = downloads.finished_handler(proc)
+        ret = downloads.finished_handler(proc_info)
         self.assertEqual(ret, 0)
         self.assertEqual(downloads.out[MsgTypes.finished].msglist[0][0], 'foo.flv')
         self.assertEqual(downloads.finished_ready[0], file_record)
@@ -137,12 +137,12 @@ class TestDecodings(unittest.TestCase):
 
         file_record = FileRecord(Fileinfo('20150816.flv', Ftypes.FLV,
                                           audio_f=Ftypes.MP3))
-        proc = extracting.spawn(file_record)
+        proc_info = extracting.spawn(file_record)
         self.assertEqual(file_record(), Fileinfo('20150816.mp3',
                                                  Ftypes.MP3,
                                                  'ExtractAudio',
                                                  Ftypes.MP3))
-        self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
+        self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
 
     def test_spawn_same_type(self):
         conf = Config()
@@ -171,16 +171,16 @@ class TestDecodings(unittest.TestCase):
 
         file_record = FileRecord(Fileinfo('20150816.flv', Ftypes.FLV,
                                           audio_f=Ftypes.MP3))
-        proc = extracting.spawn(file_record)
-        self.assertEqual(proc, Procinfo(proc.proc_o, file_record))
+        proc_info = extracting.spawn(file_record)
+        self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
         self.assertEqual(file_record.rec, [Fileinfo('20150816.flv', Ftypes.FLV,
                                                     audio_f=Ftypes.MP3),
                                            Fileinfo('20150816.mp3', Ftypes.MP3,
                                                     'ExtractAudio', Ftypes.MP3)])
-        while (proc.proc_o.proc.poll() is None):
+        while (proc_info.proc.poll() is None):
             time.sleep(0.05)
 
-        ret = extracting.finished_handler(proc)
+        ret = extracting.finished_handler(proc_info)
         self.assertEqual(ret, 0)
         self.assertEqual(extracting.out[MsgTypes.finished].msglist[0][0], '20150816.mp3')
         self.assertEqual(extracting.finished_ready[0], file_record)

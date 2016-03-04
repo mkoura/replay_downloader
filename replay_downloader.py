@@ -20,8 +20,8 @@ from subprocess import Popen, PIPE
 Fileinfo = collections.namedtuple('Fileinfo', 'path type clname audio_f video_f')
 # clname, audio_f and video_f are optional
 Fileinfo.__new__.__defaults__ = ('', '', '')
-# proc_o is instance of Proc, file_record is instance of FileRecord
-Procinfo = collections.namedtuple('Procinfo', 'proc_o file_record')
+# proc, file_record is instance of FileRecord
+Procinfo = collections.namedtuple('Procinfo', 'proc file_record')
 
 
 class Rtypes(Enum):
@@ -115,7 +115,7 @@ class ProcScheduler:
 
     def _check_running_procs(self) -> bool:
         for procinfo in self.running_procs:
-            retcode = procinfo.proc_o.proc.poll()
+            retcode = procinfo.proc.poll()
             if retcode is not None:
                 self.running_procs.remove(procinfo)
                 self.avail_slots += 1
@@ -208,11 +208,6 @@ class Msgs:
         _print(MsgTypes.finished)
         _print(MsgTypes.failed)
         _print(MsgTypes.skipped)
-
-
-class Proc:
-    def __init__(self, proc):
-        self.proc = proc
 
 
 class FileRecord:
@@ -308,16 +303,13 @@ class Download:
         else:
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             self.out[MsgTypes.active].add("" + res_file)
-            proc = Proc(p)
-
-        file_record.add(cur_fileinfo)
-        return Procinfo(proc, file_record)
+            file_record.add(cur_fileinfo)
+            return Procinfo(p, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
-        proc_o = procinfo.proc_o
+        proc = procinfo.proc
         filepath = procinfo.file_record().path
         filetype = procinfo.file_record().type
-        proc = proc_o.proc
         retcode = proc.poll()
 
         (out, err) = proc.communicate()
@@ -409,15 +401,12 @@ class ExtractAudio:
                       local_file_name, "-vn", "-acodec", "copy", res_file],
                       stdout=PIPE, stderr=PIPE)
             self.out[MsgTypes.active].add("" + res_file)
-            proc = Proc(p)
-
-        file_record.add(cur_fileinfo)
-        return Procinfo(proc, file_record)
+            file_record.add(cur_fileinfo)
+            return Procinfo(p, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
-        proc_o = procinfo.proc_o
+        proc = procinfo.proc
         filepath = procinfo.file_record().path
-        proc = proc_o.proc
         retcode = proc.poll()
 
         (out, err) = proc.communicate()
@@ -690,7 +679,7 @@ if __name__ == "__main__":
             if not hasattr(l, 'running_procs'):
                 continue
             for procinfo in l.running_procs:
-                proc = procinfo.proc_o.proc
+                proc = procinfo.proc
                 if proc.poll() is None:
                     proc.kill()
 
