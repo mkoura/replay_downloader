@@ -350,7 +350,7 @@ class ExtractAudio:
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Extracting audio"),
-                    MsgTypes.finished: MsgList("Audio extracted from"),
+                    MsgTypes.finished: MsgList("Audio extracting resulted in"),
                     MsgTypes.skipped: MsgList("Skipped extracting audio of"),
                     MsgTypes.failed: MsgList("Failed to extract audio"),
                     MsgTypes.errors: MsgList()}
