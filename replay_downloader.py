@@ -105,13 +105,15 @@ class ProcScheduler:
         self.finish_callback = self.obj.finished_handler
 
     def _spawn(self) -> bool:
-        while ((self.avail_slots != 0) and (len(self.to_do) != 0)):
+        len_todo = len(self.to_do)
+        while (self.avail_slots != 0) and (len_todo != 0):
             procinfo = self.spawn_callback(self.to_do.pop())
             if procinfo is not None:
                 self.running_procs.append(procinfo)
                 self.avail_slots -= 1
+                len_todo -= 1
 
-        return(len(self.to_do) == 0)
+        return(len_todo == 0)
 
     def _check_running_procs(self) -> bool:
         for procinfo in self.running_procs:
@@ -441,7 +443,8 @@ class Cleanup:
         self.to_do = to_do
 
     def __call__(self):
-        while len(self.to_do) != 0:
+        length = len(self.to_do)
+        for r in range(length):
             file_record = self.to_do.pop()
             for p in file_record.rec[:-1]:
                 try:
