@@ -20,22 +20,27 @@ from subprocess import Popen, PIPE
 Fileinfo = collections.namedtuple('Fileinfo', 'path type clname audio_f video_f')
 # clname, audio_f and video_f are optional
 Fileinfo.__new__.__defaults__ = ('', '', '')
-# proc, file_record is instance of FileRecord
+# proc is object returned by Popen, file_record is instance of FileRecord
 Procinfo = collections.namedtuple('Procinfo', 'proc file_record')
 
 
 class Rtypes(Enum):
+    """Protocols used for downloading the remote file."""
+
     RTMP = 0
     HTTP = 1
 
 
 class Ftypes(Enum):
+    """File types that we expect and can work with."""
+
     FLV = 0
     MP3 = 1
     AAC = 2
     MP4 = 3
 
 
+# mapping of known file types to file extensions
 file_ext_d = {
     Ftypes.FLV.name: 'flv',
     Ftypes.MP3.name: 'mp3',
@@ -45,6 +50,8 @@ file_ext_d = {
 
 
 class MsgTypes(Enum):
+    """Types of message queues."""
+
     active = 0
     finished = 1
     skipped = 2
@@ -53,10 +60,14 @@ class MsgTypes(Enum):
 
 
 class Config:
+
+    """Configuration options."""
+
     class __Copts:
         pass
 
     def __init__(self, cfg_path: str=''):
+        # default values
         self.cfg = configparser.ConfigParser()
         self.cfg['DEFAULT'] = {'concurrency': '3'}
         self.cfg['AUTH'] = {'login': '', 'password': ''}
@@ -71,9 +82,12 @@ class Config:
                             'login_url': 'http://webcast.dzogchen.net/login-exec.php',
                             'list_regex': r'<a href=\"(http:[^\"]*playlist.m3u8)\"'}
 
+        # read config file and override default values
         if os.path.isfile(cfg_path):
             self.cfg.read(cfg_path)
 
+        # create configuration structure with all config values so that it's
+        # independent of specific source of configuration (e.g. ini file)
         self.DEFAULT = self.__Copts()
         self.DEFAULT.concurrency = self.cfg.getint('DEFAULT', 'concurrency')
         self.AUTH = self.__Copts()
@@ -96,7 +110,14 @@ class Config:
 
 
 class ProcScheduler:
+
+    """Run processes in parallel via schedulable object.
+    Callable object for 'Work.add'."""
+
     def __init__(self, schedulable_obj):
+        """schedulable_obj has 'spawn' and 'finished_handler' methods
+        and 'to_do' stack."""
+
         self.avail_slots = 3
         self.running_procs = []
         self.obj = schedulable_obj
@@ -105,6 +126,9 @@ class ProcScheduler:
         self.finish_callback = self.obj.finished_handler
 
     def _spawn(self) -> bool:
+        """Run the 'spawn' method of the schedulable_obj for every item
+        in the 'to_do' stack. Run up-to 'avail_slots' processes in parallel."""
+
         len_todo = len(self.to_do)
         while (self.avail_slots != 0) and (len_todo != 0):
             procinfo = self.spawn_callback(self.to_do.pop())
@@ -113,9 +137,13 @@ class ProcScheduler:
                 self.avail_slots -= 1
                 len_todo -= 1
 
+        # return True if there is nothing left to do
         return(len_todo == 0)
 
     def _check_running_procs(self) -> bool:
+        """Check all running processes and call the 'finished_handler'
+        method of the schedulable_obj on those that are finished."""
+
         for procinfo in self.running_procs:
             retcode = procinfo.proc.poll()
             if retcode is not None:
@@ -123,24 +151,35 @@ class ProcScheduler:
                 self.avail_slots += 1
                 self.finish_callback(procinfo)
 
+        # return True if all running processes are finished
         return(len(self.running_procs) == 0)
 
     def __call__(self) -> bool:
+        """Return True if there's nothing to do at the moment."""
+
         return all((self._spawn(), self._check_running_procs()))
 
 
 class Work():
+
+    """Maintain list of scheduled actions."""
+
     def __init__(self):
         self.pipeline = []
 
-    def add(self, scheduler):
-        self.pipeline.append(scheduler)
+    def add(self, action):
+        """Add work (callable object) to pipeline."""
+
+        self.pipeline.append(action)
 
 
 class MsgList:
+
+    """Queue of messages with timestamp."""
+
     def __init__(self, text=''):
         self.msglist = []
-        self.tstamp = 0
+        self.tstamp = 0  # last time the messages were displayed
         self.text = text
 
     def update_tstamp(self):
@@ -153,12 +192,19 @@ class MsgList:
         del self.msglist[:]
 
     def get_new(self) -> list:
+        """Return list of new messages."""
+
+        # get messages that were not displayed (requested) yet
         retlist = [msg[0] for msg in self.msglist if msg[1] >= self.tstamp]
         self.update_tstamp()
         return retlist
 
 
 class Msgs:
+
+    """Print available messages."""
+
+    # list of symbols used for displaying progress
     syms = ['.', '+', '*', '#']
     slen = len(syms)
 
@@ -167,6 +213,7 @@ class Msgs:
         pass
 
     def get_msglists_with_key(self, key: str):
+        """Return list of message queues identified by 'key'."""
         return [d[key] for d in _OUT if key in d]
 
     def _print_new(self, key: str, out=sys.stdout):
@@ -175,13 +222,19 @@ class Msgs:
                 print(str(msglist.text + " " + msg).strip(), file=out)
 
     def print_errors(self):
+        """Print new error messages."""
+
         self._print_new(MsgTypes.errors, sys.stderr)
 
     def print(self):
+        """Print new error messages and messages indicating progress."""
+
         self.print_errors()
         self._print_new(MsgTypes.active)
 
     def print_dots(self):
+        """Display progress using symbols instead of text messages."""
+
         def _print(sym, msglist):
             for msg in msglist.get_new():
                 print(sym, end="")
@@ -197,6 +250,8 @@ class Msgs:
             _print('S', i)
 
     def print_summary(self):
+        """Print summary of the final outcome."""
+
         def _print(key):
             for li in self.get_msglists_with_key(key):
                 num = len(li.msglist)
@@ -213,17 +268,25 @@ class Msgs:
 
 
 class FileRecord:
-    def __init__(self, rec: Fileinfo):
-        self.rec = [rec]
 
-    def add(self, rec: Fileinfo):
-        self.rec.append(rec)
+    """Record complete history of file transformations."""
+
+    def __init__(self, file_info: Fileinfo):
+        self.rec = [file_info]
+
+    def add(self, file_info: Fileinfo):
+        self.rec.append(file_info)
 
     def __call__(self) -> Fileinfo:
+        """Return current state of the file (i.e. last Fileinfo)."""
+
         return self.rec[-1]
 
 
 class Download:
+
+    """Download specified files. Schedulable object for 'ProcScheduler'."""
+
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Downloading"),
@@ -238,6 +301,8 @@ class Download:
 
     @staticmethod
     def parse_todownload_list(downloads_list: list) -> list:
+        """Parse the list of files to download and store useful metadata."""
+
         retlist = []
         for i in downloads_list:
             line = i.strip()
@@ -253,6 +318,8 @@ class Download:
         return retlist
 
     def set_destdir(self, destdir: str):
+        """Set directory where the downloaded files will be saved."""
+
         if destdir == '':
             return
 
@@ -265,6 +332,9 @@ class Download:
                 raise
 
     def spawn(self, file_record: FileRecord) -> Procinfo:
+        """Run command for downloading the file in the background
+        and record corresponding metadata."""
+
         remote_file_name = file_record().path
         download_type = file_record().type
 
@@ -280,6 +350,7 @@ class Download:
                        self.conf.RTMP.replay_url, "--swfVfy",
                        self.conf.RTMP.player_url, "--flv", res_file]
         elif download_type is Rtypes.HTTP:
+            # extract file name from URI
             fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
             res_file = self.destination + fname.group(1)
             res_type = Ftypes.MP4
@@ -303,17 +374,23 @@ class Download:
             self.finished_ready.append(file_record)
             return None
         else:
+            # run the command
             p = Popen(command, stdout=PIPE, stderr=PIPE)
+            # add the file name to 'active' message queue
             self.out[MsgTypes.active].add("" + res_file)
+            # update file history
             file_record.add(cur_fileinfo)
             return Procinfo(p, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
+        """Actions performed when download is finished."""
+
         proc = procinfo.proc
         filepath = procinfo.file_record().path
         filetype = procinfo.file_record().type
         retcode = proc.poll()
 
+        # get stdout and stderr of the command
         (out, err) = proc.communicate()
         if out:
             logit("[download] stdout for " + filepath + ":")
@@ -322,7 +399,9 @@ class Download:
             logit("[download] stderr for " + filepath + ":", logging.error)
             logit(err.decode('utf-8'), logging.error)
 
+        # following message:
         # "Download may be incomplete (downloaded about 99.50%), try resuming"
+        # means download was ok even though the return value was non-zero
         if (retcode == 2) and (filetype == Ftypes.FLV):
             for each_line in err.decode('utf-8').splitlines():
                 m = re.search(r'\(downloaded about 99\.[0-9]+%\),', each_line)
@@ -330,8 +409,10 @@ class Download:
                     retcode = 0
                     break
 
+        # check if download was successful
         if retcode == 0:
             self.out[MsgTypes.finished].add("" + filepath)
+            # file is ready for further processing by next action in 'pipeline'
             self.finished_ready.append(procinfo.file_record)
         else:
             try:
@@ -347,6 +428,9 @@ class Download:
 
 
 class ExtractAudio:
+
+    """Extract audio from specified files. Schedulable object for 'ProcScheduler'."""
+
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Extracting audio"),
@@ -360,6 +444,8 @@ class ExtractAudio:
         self.to_do = to_do
 
     def set_destdir(self, destdir: str):
+        """Set directory where the extracted audio files will be saved."""
+
         if destdir == '':
             return
 
@@ -372,6 +458,9 @@ class ExtractAudio:
         self.destination = destdir
 
     def spawn(self, file_record: list) -> Procinfo:
+        """Run command for extracting the audio in the background
+        and record corresponding metadata."""
+
         local_file_name = file_record().path
         file_type = file_record().type
         audio_format = file_record().audio_f
@@ -384,6 +473,7 @@ class ExtractAudio:
 
         if file_type == audio_format:
             # nothing to do, passing for further processing
+            # by next action in 'pipeline'
             self.finished_ready.append(file_record)
             return None
 
@@ -399,18 +489,24 @@ class ExtractAudio:
             self.finished_ready.append(file_record)
             return None
         else:
+            # run the command
             p = Popen([self.conf.COMMANDS.ffmpeg, "-i",
                       local_file_name, "-vn", "-acodec", "copy", res_file],
                       stdout=PIPE, stderr=PIPE)
+            # add the file name to 'active' message queue
             self.out[MsgTypes.active].add("" + res_file)
+            # update file history
             file_record.add(cur_fileinfo)
             return Procinfo(p, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
+        """Actions performed when extracting is finished."""
+
         proc = procinfo.proc
         filepath = procinfo.file_record().path
         retcode = proc.poll()
 
+        # get stdout and stderr of the command
         (out, err) = proc.communicate()
         if out:
             logit("[extracting] stdout for " + filepath + ":")
@@ -419,8 +515,10 @@ class ExtractAudio:
             logit("[extracting] stderr for " + filepath + ":", logging.error)
             logit(err.decode('utf-8'), logging.error)
 
+        # check if extracting was successful
         if retcode == 0:
             self.out[MsgTypes.finished].add("" + filepath)
+            # file is ready for further processing by next action in 'pipeline'
             self.finished_ready.append(procinfo.file_record)
         else:
             try:
@@ -436,13 +534,20 @@ class ExtractAudio:
 
 
 class Cleanup:
+
+    """Delete all intermediate files.
+    Callable object for 'Work.add'."""
+
     def __init__(self, to_do: list):
         self.out = {MsgTypes.finished: MsgList("Deleted")}
         out_add(self.out)
         self.finished_ready = []
         self.to_do = to_do
 
-    def __call__(self):
+    def __call__(self) -> bool:
+        """Go through every file record and delete all existing files
+        except the last one."""
+
         length = len(self.to_do)
         for r in range(length):
             file_record = self.to_do.pop()
@@ -458,33 +563,43 @@ class Cleanup:
         return True
 
 
-_LOGFILE = None
+# path to the log file
+LOGFILE = None
+# list of dictionaries that map message queues (active, skipped, etc.)
 _OUT = []
 
 
 def out_add(out: dict):
+    """Add dictionary to the list."""
     _OUT.append(out)
 
 
 def remove_ext(filename: str):
+    """Remove file extension if it really looks like file extension
+    (not just something after the dot)."""
+
     fname, fext = os.path.splitext(filename)
     return fname if len(fext) == 4 else fname + fext
 
 
 def log_init(logfile: str):
+    """Initialize the logging infrastructure."""
+
     if logfile is None:
         return
 
     try:
         logging.basicConfig(filename=logfile, level=logging.DEBUG)
-        global _LOGFILE
-        _LOGFILE = logfile
+        global LOGFILE
+        LOGFILE = logfile
     except EnvironmentError as e:
         print(str(e), file=sys.stderr)
 
 
 def logit(message: str, method=logging.info):
-    if _LOGFILE is None:
+    """Log message to the log file."""
+
+    if LOGFILE is None:
         return
 
     try:
@@ -494,11 +609,9 @@ def logit(message: str, method=logging.info):
         print(str(e), file=sys.stderr)
 
 
-def get_logfile():
-    return _LOGFILE
-
-
 def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
+    """Get list of remote files (streams) available for download."""
+
     def _get_session(desc):
         if (conf.AUTH.login == '') or (conf.AUTH.password == ''):
             raise ValueError('Login or password are not configured')
@@ -508,8 +621,10 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
             'password': conf.AUTH.password
         }
 
+        # get available files (streams) from classic replay...
         if replay_type == Rtypes.RTMP:
             conf_section = conf.RTMP
+        # ...or from mobile replay
         elif replay_type == Rtypes.HTTP:
             conf_section = conf.HTTP
         else:
@@ -523,6 +638,7 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
                 if m:
                     print(m.group(1), file=desc)
 
+    # output to file or to stdout?
     if outfile == '-':
         _get_session(sys.stdout)
     else:
@@ -534,7 +650,9 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
                 _get_session(f)
 
 
-def get_list_from_file(list_file: str):
+def get_list_from_file(list_file: str) -> list:
+    """Return list of lines in file."""
+
     try:
         with open(list_file) as f:
             return f.read().splitlines()
@@ -573,13 +691,16 @@ if __name__ == "__main__":
                         action='store_true')
     args = parser.parse_args()
 
+    # no option was passed to the program
     if not len(sys.argv) > 1:
         parser.print_help()
         sys.exit(1)
 
+    # config file specified on command line
     if args.config_file is not None:
         cflist = (args.config_file)
     else:
+        # otherwise find config file in default locations
         cflist = ('replay_downloader.ini',
                   os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'))
 
@@ -614,6 +735,7 @@ if __name__ == "__main__":
               "-l (--get-avail) and -k (--get-avail-mobile)", file=sys.stderr)
         sys.exit(1)
 
+    # instantiate "messages" and choose how its output will be presented
     msg = Msgs()
     if args.brief:
         msg_handler = msg.print_dots
@@ -622,36 +744,51 @@ if __name__ == "__main__":
     else:
         msg_handler = msg.print
 
+    # instantiate work pipeline
     work = Work()
 
     log_init(args.logfile)
 
+    # list of files to download was specified
     if args.get_list is not None:
         downloads_list = get_list_from_file(args.get_list)
+    # single file to download was specified
     elif args.download_file is not None:
         downloads_list = [args.download_file]
 
+    # number of concurrent processes
     avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.DEFAULT.concurrency
 
+    #
+    # Create the work pipeline. When one step of the pipeline is finished
+    # with processing one item from it's stack, the outcome is passed to next
+    # step on the pipeline.
+    # Work is finished when all steps in the pipeline are finished.
+    #
+
+    # download what needs to be downloaded
     to_download = Download.parse_todownload_list(downloads_list)
     downloads = Download(conf, to_download)
     downloads_scheduler = ProcScheduler(downloads)
     downloads_scheduler.avail_slots = avail_slots
     work.add(downloads_scheduler)
 
+    # extract audio from downloaded files
     extracting = ExtractAudio(conf, downloads.finished_ready)
     extracting.set_destdir(args.destination)
     extracting_scheduler = ProcScheduler(extracting)
     extracting_scheduler.avail_slots = avail_slots
     work.add(extracting_scheduler)
 
+    # delete intermediate files
     cleanup = Cleanup(extracting.finished_ready)
     work.add(cleanup)
 
     try:
         done = False
 
+        # loop until there's no work left to do
         while not done:
             done = True
             for s in work.pipeline:
@@ -659,12 +796,14 @@ if __name__ == "__main__":
                 if t is False:
                     done = False
 
+            # print messages produced during this iterration
             msg_handler()
             time.sleep(1)
 
         if not args.quiet:
             msg.print_summary()
 
+        # determine return value
         if retval == 0:
             for m in msg.get_msglists_with_key(MsgTypes.failed):
                 if len(m.msglist) > 0:
@@ -679,6 +818,7 @@ if __name__ == "__main__":
         print(" Interrupting running processes...")
         retval = 1
         for l in work.pipeline:
+            # kill all processes running in the background
             if not hasattr(l, 'running_procs'):
                 continue
             for procinfo in l.running_procs:
