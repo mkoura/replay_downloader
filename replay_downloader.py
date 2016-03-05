@@ -112,7 +112,7 @@ class Config:
 class ProcScheduler:
 
     """Run processes in parallel via schedulable object.
-    Callable object for 'Work.add'."""
+    Callable object for work pipeline."""
 
     def __init__(self, schedulable_obj):
         """schedulable_obj has 'spawn' and 'finished_handler' methods
@@ -535,8 +535,7 @@ class ExtractAudio:
 
 class Cleanup:
 
-    """Delete all intermediate files.
-    Callable object for 'Work.add'."""
+    """Delete all intermediate files. Callable object for work pipeline."""
 
     def __init__(self, to_do: list):
         self.out = {MsgTypes.finished: MsgList("Deleted")}
