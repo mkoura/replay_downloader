@@ -689,6 +689,9 @@ if __name__ == "__main__":
                         action='store_true')
     parser.add_argument('-q', '--quiet', help='even less verbose output',
                         action='store_true')
+    parser.add_argument('-n', '--no-cleanup',
+                        help='don\'t delete intermediate files',
+                        action='store_true')
     args = parser.parse_args()
 
     # no option was passed to the program
@@ -781,9 +784,10 @@ if __name__ == "__main__":
     extracting_scheduler.avail_slots = avail_slots
     work.add(extracting_scheduler)
 
-    # delete intermediate files
-    cleanup = Cleanup(extracting.finished_ready)
-    work.add(cleanup)
+    if args.no_cleanup is False:
+        # delete intermediate files
+        cleanup = Cleanup(extracting.finished_ready)
+        work.add(cleanup)
 
     try:
         done = False
