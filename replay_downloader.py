@@ -4,6 +4,11 @@
 # Licence: MPL 2.0
 # Author: Martin Kourim <misc.kourim@gmail.com>
 
+"""
+Module for downloading files from http://replay.dzogchen.net.
+It can download from both standard replay and mobile replay.
+"""
+
 
 import os
 import re
@@ -18,22 +23,27 @@ from subprocess import Popen, PIPE
 
 
 Fileinfo = collections.namedtuple('Fileinfo', 'path type clname audio_f video_f')
+"""File path, type, class that created the record, audio format, video format"""
+
 # clname, audio_f and video_f are optional
 Fileinfo.__new__.__defaults__ = ('', '', '')
-# proc is object returned by Popen, file_record is instance of FileRecord
+
 Procinfo = collections.namedtuple('Procinfo', 'proc file_record')
+"""proc is an object returned by Popen, file_record is an instance of FileRecord"""
 
 
 class Rtypes(Enum):
-    """Protocols used for downloading the remote file."""
-
+    """
+    Protocols used for downloading the remote file.
+    """
     RTMP = 0
     HTTP = 1
 
 
 class Ftypes(Enum):
-    """File types that we expect and can work with."""
-
+    """
+    File types that we expect and can work with.
+    """
     FLV = 0
     MP3 = 1
     AAC = 2
@@ -50,8 +60,9 @@ file_ext_d = {
 
 
 class MsgTypes(Enum):
-    """Types of message queues."""
-
+    """
+    Types of message queues.
+    """
     active = 0
     finished = 1
     skipped = 2
@@ -60,13 +71,17 @@ class MsgTypes(Enum):
 
 
 class Config:
-
-    """Configuration options."""
-
+    """
+    Configuration options.
+    """
     class __Copts:
         pass
 
     def __init__(self, cfg_path: str=''):
+        """
+        Args:
+            cfg_path (str): Path to config file.
+        """
         # default values
         self.cfg = configparser.ConfigParser()
         self.cfg['DEFAULT'] = {'concurrency': '3'}
@@ -110,14 +125,15 @@ class Config:
 
 
 class ProcScheduler:
-
-    """Run processes in parallel via schedulable object.
-    Callable object for work pipeline."""
-
+    """
+    Run processes in parallel via schedulable object.
+    Callable object for work pipeline.
+    """
     def __init__(self, schedulable_obj):
-        """schedulable_obj has 'spawn' and 'finished_handler' methods
-        and 'to_do' stack."""
-
+        """
+        The schedulable_obj has 'spawn' and 'finished_handler' methods
+        and 'to_do' stack.
+        """
         self.avail_slots = 3
         self.running_procs = []
         self.obj = schedulable_obj
@@ -126,9 +142,10 @@ class ProcScheduler:
         self.finish_callback = self.obj.finished_handler
 
     def _spawn(self) -> bool:
-        """Run the 'spawn' method of the schedulable_obj for every item
-        in the 'to_do' stack. Run up-to 'avail_slots' processes in parallel."""
-
+        """
+        Run the 'spawn' method of the schedulable_obj for every item
+        in the 'to_do' stack. Run up-to 'avail_slots' processes in parallel.
+        """
         len_todo = len(self.to_do)
         while (self.avail_slots != 0) and (len_todo != 0):
             procinfo = self.spawn_callback(self.to_do.pop())
@@ -141,9 +158,10 @@ class ProcScheduler:
         return(len_todo == 0)
 
     def _check_running_procs(self) -> bool:
-        """Check all running processes and call the 'finished_handler'
-        method of the schedulable_obj on those that are finished."""
-
+        """
+        Check all running processes and call the 'finished_handler'
+        method of the schedulable_obj on those that are finished.
+        """
         for procinfo in self.running_procs:
             retcode = procinfo.proc.poll()
             if retcode is not None:
@@ -155,28 +173,30 @@ class ProcScheduler:
         return(len(self.running_procs) == 0)
 
     def __call__(self) -> bool:
-        """Return True if there's nothing to do at the moment."""
-
+        """
+        Return True if there's nothing to do at the moment.
+        """
         return all((self._spawn(), self._check_running_procs()))
 
 
 class Work():
-
-    """Maintain list of scheduled actions."""
-
+    """
+    Maintain list of scheduled actions.
+    """
     def __init__(self):
         self.pipeline = []
 
     def add(self, action):
-        """Add work (callable object) to pipeline."""
-
+        """
+        Add work (callable object) to pipeline.
+        """
         self.pipeline.append(action)
 
 
 class MsgList:
-
-    """Queue of messages with timestamp."""
-
+    """
+    Queue of messages with timestamp.
+    """
     def __init__(self, text=''):
         self.msglist = []
         self.tstamp = 0  # last time the messages were displayed
@@ -192,8 +212,9 @@ class MsgList:
         del self.msglist[:]
 
     def get_new(self) -> list:
-        """Return list of new messages."""
-
+        """
+        Return list of new messages.
+        """
         # get messages that were not displayed (requested) yet
         retlist = [msg[0] for msg in self.msglist if msg[1] >= self.tstamp]
         self.update_tstamp()
@@ -201,9 +222,9 @@ class MsgList:
 
 
 class Msgs:
-
-    """Print available messages."""
-
+    """
+    Print available messages.
+    """
     # list of symbols used for displaying progress
     syms = ['.', '+', '*', '#']
     slen = len(syms)
@@ -213,7 +234,9 @@ class Msgs:
         pass
 
     def get_msglists_with_key(self, key: str):
-        """Return list of message queues identified by 'key'."""
+        """
+        Return list of message queues identified by 'key'.
+        """
         return [d[key] for d in _OUT if key in d]
 
     def _print_new(self, key: str, out=sys.stdout):
@@ -222,19 +245,22 @@ class Msgs:
                 print(str(msglist.text + " " + msg).strip(), file=out)
 
     def print_errors(self):
-        """Print new error messages."""
-
+        """
+        Print new error messages.
+        """
         self._print_new(MsgTypes.errors, sys.stderr)
 
     def print(self):
-        """Print new error messages and messages indicating progress."""
-
+        """
+        Print new error messages and messages indicating progress.
+        """
         self.print_errors()
         self._print_new(MsgTypes.active)
 
     def print_dots(self):
-        """Display progress using symbols instead of text messages."""
-
+        """
+        Display progress using symbols instead of text messages.
+        """
         def _print(sym, msglist):
             for msg in msglist.get_new():
                 print(sym, end="")
@@ -250,8 +276,9 @@ class Msgs:
             _print('S', i)
 
     def print_summary(self):
-        """Print summary of the final outcome."""
-
+        """
+        Print summary of the final outcome.
+        """
         def _print(key):
             for li in self.get_msglists_with_key(key):
                 num = len(li.msglist)
@@ -268,9 +295,9 @@ class Msgs:
 
 
 class FileRecord:
-
-    """Record complete history of file transformations."""
-
+    """
+    Record complete history of file transformations.
+    """
     def __init__(self, file_info: Fileinfo):
         self.rec = [file_info]
 
@@ -278,15 +305,16 @@ class FileRecord:
         self.rec.append(file_info)
 
     def __call__(self) -> Fileinfo:
-        """Return current state of the file (i.e. last Fileinfo)."""
-
+        """
+        Return current state of the file (i.e. last Fileinfo).
+        """
         return self.rec[-1]
 
 
 class Download:
-
-    """Download specified files. Schedulable object for 'ProcScheduler'."""
-
+    """
+    Download specified files. Schedulable object for 'ProcScheduler'.
+    """
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Downloading"),
@@ -301,8 +329,9 @@ class Download:
 
     @staticmethod
     def parse_todownload_list(downloads_list: list) -> list:
-        """Parse the list of files to download and store useful metadata."""
-
+        """
+        Parse the list of files to download and store useful metadata.
+        """
         retlist = []
         for i in downloads_list:
             line = i.strip()
@@ -318,8 +347,9 @@ class Download:
         return retlist
 
     def set_destdir(self, destdir: str):
-        """Set directory where the downloaded files will be saved."""
-
+        """
+        Set directory where the downloaded files will be saved.
+        """
         if destdir == '':
             return
 
@@ -332,9 +362,10 @@ class Download:
                 raise
 
     def spawn(self, file_record: FileRecord) -> Procinfo:
-        """Run command for downloading the file in the background
-        and record corresponding metadata."""
-
+        """
+        Run command for downloading the file in the background
+        and record corresponding metadata.
+        """
         remote_file_name = file_record().path
         download_type = file_record().type
 
@@ -383,8 +414,9 @@ class Download:
             return Procinfo(p, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
-        """Actions performed when download is finished."""
-
+        """
+        Actions performed when download is finished.
+        """
         proc = procinfo.proc
         filepath = procinfo.file_record().path
         filetype = procinfo.file_record().type
@@ -399,9 +431,9 @@ class Download:
             logit("[download] stderr for " + filepath + ":", logging.error)
             logit(err.decode('utf-8'), logging.error)
 
-        # following message:
+        # If rtmpdump finishes with following message:
         # "Download may be incomplete (downloaded about 99.50%), try resuming"
-        # means download was ok even though the return value was non-zero
+        # it means that download was ok even though the return value was non-zero
         if (retcode == 2) and (filetype == Ftypes.FLV):
             for each_line in err.decode('utf-8').splitlines():
                 m = re.search(r'\(downloaded about 99\.[0-9]+%\),', each_line)
@@ -428,9 +460,9 @@ class Download:
 
 
 class ExtractAudio:
-
-    """Extract audio from specified files. Schedulable object for 'ProcScheduler'."""
-
+    """
+    Extract audio from specified files. Schedulable object for 'ProcScheduler'.
+    """
     def __init__(self, conf: Config, to_do: list):
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Extracting audio"),
@@ -444,8 +476,9 @@ class ExtractAudio:
         self.to_do = to_do
 
     def set_destdir(self, destdir: str):
-        """Set directory where the extracted audio files will be saved."""
-
+        """
+        Set directory where the extracted audio files will be saved.
+        """
         if destdir == '':
             return
 
@@ -458,9 +491,10 @@ class ExtractAudio:
         self.destination = destdir
 
     def spawn(self, file_record: list) -> Procinfo:
-        """Run command for extracting the audio in the background
-        and record corresponding metadata."""
-
+        """
+        Run command for extracting the audio in the background
+        and record corresponding metadata.
+        """
         local_file_name = file_record().path
         file_type = file_record().type
         audio_format = file_record().audio_f
@@ -500,8 +534,9 @@ class ExtractAudio:
             return Procinfo(p, file_record)
 
     def finished_handler(self, procinfo: Procinfo) -> int:
-        """Actions performed when extracting is finished."""
-
+        """
+        Actions performed when extracting is finished.
+        """
         proc = procinfo.proc
         filepath = procinfo.file_record().path
         retcode = proc.poll()
@@ -534,9 +569,9 @@ class ExtractAudio:
 
 
 class Cleanup:
-
-    """Delete all intermediate files. Callable object for work pipeline."""
-
+    """
+    Delete all intermediate files. Callable object for work pipeline.
+    """
     def __init__(self, to_do: list):
         self.out = {MsgTypes.finished: MsgList("Deleted")}
         out_add(self.out)
@@ -544,9 +579,10 @@ class Cleanup:
         self.to_do = to_do
 
     def __call__(self) -> bool:
-        """Go through every file record and delete all existing files
-        except the last one."""
-
+        """
+        Go through every file record and delete all existing files
+        except the last one.
+        """
         length = len(self.to_do)
         for r in range(length):
             file_record = self.to_do.pop()
@@ -562,28 +598,33 @@ class Cleanup:
         return True
 
 
-# path to the log file
 LOGFILE = None
-# list of dictionaries that map message queues (active, skipped, etc.)
+"""Path to the log file."""
+
 _OUT = []
+"""List of dictionaries that map message queues (active, skipped, etc.)."""
 
 
 def out_add(out: dict):
-    """Add dictionary to the list."""
+    """
+    Add dictionary to the list.
+    """
     _OUT.append(out)
 
 
 def remove_ext(filename: str):
-    """Remove file extension if it really looks like file extension
-    (not just something after the dot)."""
-
+    """
+    Remove file extension if it really looks like file extension
+    (not just something after the dot).
+    """
     fname, fext = os.path.splitext(filename)
     return fname if len(fext) == 4 else fname + fext
 
 
 def log_init(logfile: str):
-    """Initialize the logging infrastructure."""
-
+    """
+    Initialize logging.
+    """
     if logfile is None:
         return
 
@@ -596,8 +637,9 @@ def log_init(logfile: str):
 
 
 def logit(message: str, method=logging.info):
-    """Log message to the log file."""
-
+    """
+    Log message.
+    """
     if LOGFILE is None:
         return
 
@@ -609,8 +651,9 @@ def logit(message: str, method=logging.info):
 
 
 def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
-    """Get list of remote files (streams) available for download."""
-
+    """
+    Get list of remote files (streams) available for download.
+    """
     def _get_session(desc):
         if (conf.AUTH.login == '') or (conf.AUTH.password == ''):
             raise ValueError('Login or password are not configured')
@@ -650,8 +693,9 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
 
 
 def get_list_from_file(list_file: str) -> list:
-    """Return list of lines in file."""
-
+    """
+    Return list of lines in file.
+    """
     try:
         with open(list_file) as f:
             return f.read().splitlines()
