@@ -22,14 +22,14 @@ from requests import session
 from subprocess import Popen, PIPE
 
 
+# file path, type, class that created the record, audio format, video format
 Fileinfo = collections.namedtuple('Fileinfo', 'path type clname audio_f video_f')
-"""File path, type, class that created the record, audio format, video format"""
 
 # clname, audio_f and video_f are optional
 Fileinfo.__new__.__defaults__ = ('', '', '')
 
+# proc is an object returned by Popen, file_record is an instance of FileRecord
 Procinfo = collections.namedtuple('Procinfo', 'proc file_record')
-"""proc is an object returned by Popen, file_record is an instance of FileRecord"""
 
 
 class EnvironmentSanityError(EnvironmentError):
@@ -611,11 +611,11 @@ class Cleanup:
         return True
 
 
+# path to the log file
 LOGFILE = None
-"""Path to the log file."""
 
+# dist of dictionaries that map message queues (active, skipped, etc.)
 _OUT = []
-"""List of dictionaries that map message queues (active, skipped, etc.)."""
 
 
 def out_add(out: dict):
