@@ -32,6 +32,12 @@ Procinfo = collections.namedtuple('Procinfo', 'proc file_record')
 """proc is an object returned by Popen, file_record is an instance of FileRecord"""
 
 
+class EnvironmentSanityError(EnvironmentError):
+    """
+    Raise this when environment does not meet expectations.
+    """
+
+
 class Rtypes(Enum):
     """
     Protocols used for downloading the remote file.
@@ -316,6 +322,10 @@ class Download:
     Download specified files. Schedulable object for 'ProcScheduler'.
     """
     def __init__(self, conf: Config, to_do: list):
+        # check if necassary tools are available
+        is_tool(conf.COMMANDS.rtmpdump)
+        is_tool(conf.COMMANDS.ffmpeg)
+
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Downloading"),
                     MsgTypes.finished: MsgList("Downloaded"),
@@ -464,6 +474,9 @@ class ExtractAudio:
     Extract audio from specified files. Schedulable object for 'ProcScheduler'.
     """
     def __init__(self, conf: Config, to_do: list):
+        # check if 'ffmpeg' is available
+        is_tool(conf.COMMANDS.ffmpeg)
+
         self.conf = conf
         self.out = {MsgTypes.active: MsgList("Extracting audio"),
                     MsgTypes.finished: MsgList("Audio extracting resulted in"),
@@ -703,6 +716,20 @@ def get_list_from_file(list_file: str) -> list:
         print(str(e), file=sys.stderr)
 
 
+def is_tool(name) -> bool:
+    """
+    Check if it's possible to run the tool.
+    """
+    try:
+        with open(os.devnull, "w") as devnull:
+            Popen([name], stdout=devnull, stderr=devnull)
+    except OSError as e:
+        estr = 'find' if e.errno == os.errno.ENOENT else 'run'
+        raise EnvironmentSanityError("Cannot {} the '{}' command"
+                                     .format(estr, name))
+    return True
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -813,24 +840,29 @@ if __name__ == "__main__":
     # Work is finished when all steps in the pipeline are finished.
     #
 
-    # download what needs to be downloaded
-    to_download = Download.parse_todownload_list(downloads_list)
-    downloads = Download(conf, to_download)
-    downloads_scheduler = ProcScheduler(downloads)
-    downloads_scheduler.avail_slots = avail_slots
-    work.add(downloads_scheduler)
+    try:
+        # download what needs to be downloaded
+        to_download = Download.parse_todownload_list(downloads_list)
+        downloads = Download(conf, to_download)
+        downloads_scheduler = ProcScheduler(downloads)
+        downloads_scheduler.avail_slots = avail_slots
+        work.add(downloads_scheduler)
 
-    # extract audio from downloaded files
-    extracting = ExtractAudio(conf, downloads.finished_ready)
-    extracting.set_destdir(args.destination)
-    extracting_scheduler = ProcScheduler(extracting)
-    extracting_scheduler.avail_slots = avail_slots
-    work.add(extracting_scheduler)
+        # extract audio from downloaded files
+        extracting = ExtractAudio(conf, downloads.finished_ready)
+        extracting.set_destdir(args.destination)
+        extracting_scheduler = ProcScheduler(extracting)
+        extracting_scheduler.avail_slots = avail_slots
+        work.add(extracting_scheduler)
 
-    if args.no_cleanup is False:
-        # delete intermediate files
-        cleanup = Cleanup(extracting.finished_ready)
-        work.add(cleanup)
+        if args.no_cleanup is False:
+            # delete intermediate files
+            cleanup = Cleanup(extracting.finished_ready)
+            work.add(cleanup)
+
+    except EnvironmentSanityError as enve:
+        print("Error: " + str(enve), file=sys.stderr)
+        sys.exit(1)
 
     try:
         done = False
