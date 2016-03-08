@@ -465,6 +465,8 @@ class Download:
             self.out[MsgTypes.failed].add("" + filepath)
             self.out[MsgTypes.errors].add("Error downloading " + filepath +
                                           ": " + err.decode('utf-8'))
+            # remove last entry from file_record`
+            proc.file_record.rec.pop()
 
         return retcode
 
@@ -577,6 +579,8 @@ class ExtractAudio:
             self.out[MsgTypes.failed].add("" + filepath)
             self.out[MsgTypes.errors].add("Error extracting " + filepath +
                                           ": " + err.decode('utf-8'))
+            # remove last entry from file_record`
+            proc.file_record.rec.pop()
 
         return retcode
 
