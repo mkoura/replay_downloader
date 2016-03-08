@@ -751,7 +751,10 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--concurrent', metavar='NUM', type=int,
                         help='number of concurrent downloads', default='-1')
     parser.add_argument('-d', '--destination', metavar='DIR',
-                        help='destination directory for decoded files',
+                        help='destination directory',
+                        default='')
+    parser.add_argument('-w', '--work-dir', metavar='DIR',
+                        help='directory for intermediate files (current directory by default)',
                         default='')
     parser.add_argument('-m', '--logfile', metavar='FILE',
                         help='log file')
@@ -844,6 +847,7 @@ if __name__ == "__main__":
         # download what needs to be downloaded
         to_download = Download.parse_todownload_list(downloads_list)
         downloads = Download(conf, to_download)
+        downloads.set_destdir(args.work_dir)
         downloads_scheduler = ProcScheduler(downloads)
         downloads_scheduler.avail_slots = avail_slots
         work.add(downloads_scheduler)
