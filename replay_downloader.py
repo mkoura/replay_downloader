@@ -214,9 +214,6 @@ class MsgList:
     def add(self, message: str):
         self.msglist.append((message, time.time()))
 
-    def clear(self):
-        del self.msglist[:]
-
     def get_new(self) -> list:
         """
         Return list of new messages.
