@@ -860,7 +860,7 @@ if __name__ == "__main__":
         extracting_scheduler.avail_slots = avail_slots
         work.add(extracting_scheduler)
 
-        if args.no_cleanup is False:
+        if not args.no_cleanup:
             # delete intermediate files
             cleanup = Cleanup(extracting.finished_ready)
             work.add(cleanup)
