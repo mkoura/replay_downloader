@@ -216,12 +216,13 @@ class MsgList:
 
     def get_new(self) -> list:
         """
-        Return list of new messages.
+        New messages iterator.
         """
         # get messages that were not displayed (requested) yet
-        retlist = [msg[0] for msg in self.msglist if msg[1] >= self.tstamp]
+        for msg in self.msglist:
+            if msg[1] >= self.tstamp:
+                yield msg[0]
         self.update_tstamp()
-        return retlist
 
 
 class Msgs:
@@ -238,9 +239,11 @@ class Msgs:
 
     def get_msglists_with_key(self, key: str):
         """
-        Return list of message queues identified by 'key'.
+        Iterator of message queues identified by 'key'.
         """
-        return [d[key] for d in _OUT if key in d]
+        for d in _OUT:
+            if key in d:
+                yield d[key]
 
     def _print_new(self, key: str, out=sys.stdout):
         for msglist in self.get_msglists_with_key(key):
