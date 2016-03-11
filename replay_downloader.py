@@ -214,7 +214,7 @@ class MsgList:
     def add(self, message: str):
         self.msglist.append((message, time.time()))
 
-    def get_new(self) -> list:
+    def get_new(self):
         """
         New messages iterator.
         """
@@ -239,11 +239,9 @@ class Msgs:
 
     def get_msglists_with_key(self, key: str):
         """
-        Iterator of message queues identified by 'key'.
+        Generator of message queues identified by 'key'.
         """
-        for d in _OUT:
-            if key in d:
-                yield d[key]
+        return (d[key] for d in _OUT if key in d)
 
     def _print_new(self, key: str, out=sys.stdout):
         for msglist in self.get_msglists_with_key(key):
