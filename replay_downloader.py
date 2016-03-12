@@ -379,7 +379,8 @@ class Download:
 
         if download_type is Rtypes.RTMP:
             # add destination, strip 'rtmp://', strip extension, append '.flv'
-            res_file = self.destination + remove_ext(remote_file_name[7:]) + '.flv'
+            res_file = os.path.join(self.destination,
+                                    remove_ext(remote_file_name[7:]) + '.flv')
             res_type = Ftypes.FLV
             audio_format = Ftypes.MP3
             command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live",
@@ -391,7 +392,7 @@ class Download:
         elif download_type is Rtypes.HTTP:
             # extract file name from URI
             fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
-            res_file = self.destination + fname.group(1)
+            res_file = os.path.join(self.destination, fname.group(1))
             res_type = Ftypes.MP4
             audio_format = Ftypes.AAC
             command = [self.conf.COMMANDS.ffmpeg, "-i",
@@ -524,8 +525,9 @@ class ExtractAudio:
             self.finished_ready.append(file_record)
             return None
 
-        res_file = self.destination + remove_ext(local_file_name) + '.' + \
-            file_ext_d[audio_format.name]
+        fname = "{}.{}".format(remove_ext(local_file_name),
+                               file_ext_d[audio_format.name])
+        res_file = os.path.join(self.destination, fname)
         cur_fileinfo = Fileinfo(res_file, audio_format, clname=type(self).__name__,
                                 audio_f=audio_format)
         if os.path.isfile(res_file):
