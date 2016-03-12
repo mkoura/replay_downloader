@@ -845,30 +845,32 @@ if __name__ == "__main__":
     # Work is finished when all steps in the pipeline are finished.
     #
 
+    # get list of files to download
+    to_download = Download.parse_todownload_list(downloads_list)
+
     try:
-        # download what needs to be downloaded
-        to_download = Download.parse_todownload_list(downloads_list)
         downloads = Download(conf, to_download)
-        downloads.set_destdir(args.work_dir)
-        downloads_scheduler = ProcScheduler(downloads)
-        downloads_scheduler.avail_slots = avail_slots
-        work.add(downloads_scheduler)
-
-        # extract audio from downloaded files
         extracting = ExtractAudio(conf, downloads.finished_ready)
-        extracting.set_destdir(args.destination)
-        extracting_scheduler = ProcScheduler(extracting)
-        extracting_scheduler.avail_slots = avail_slots
-        work.add(extracting_scheduler)
-
-        if not args.no_cleanup:
-            # delete intermediate files
-            cleanup = Cleanup(extracting.finished_ready)
-            work.add(cleanup)
-
     except EnvironmentSanityError as enve:
         print("Error: " + str(enve), file=sys.stderr)
         sys.exit(1)
+
+    # download setup
+    downloads.set_destdir(args.work_dir)
+    downloads_scheduler = ProcScheduler(downloads)
+    downloads_scheduler.avail_slots = avail_slots
+    work.add(downloads_scheduler)
+
+    # extract audio setup
+    extracting.set_destdir(args.destination)
+    extracting_scheduler = ProcScheduler(extracting)
+    extracting_scheduler.avail_slots = avail_slots
+    work.add(extracting_scheduler)
+
+    if not args.no_cleanup:
+        # cleanup setup
+        cleanup = Cleanup(extracting.finished_ready)
+        work.add(cleanup)
 
     try:
         done = False
