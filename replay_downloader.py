@@ -640,7 +640,7 @@ def log_init(logfile: str):
     """
     Initialize logging.
     """
-    if logfile is None:
+    if not logfile:
         return
 
     try:
@@ -655,7 +655,7 @@ def logit(message: str, method=logging.info):
     """
     Log message.
     """
-    if LOGFILE is None:
+    if not LOGFILE:
         return
 
     try:
@@ -699,7 +699,7 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
     if outfile == '-':
         _get_session(sys.stdout)
     else:
-        if append is True:
+        if append:
             with open(outfile, 'a') as f:
                 _get_session(f)
         else:
@@ -775,7 +775,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # config file specified on command line
-    if args.config_file is not None:
+    if args.config_file:
         cflist = (args.config_file)
     else:
         # otherwise find config file in default locations
@@ -792,7 +792,7 @@ if __name__ == "__main__":
             pass
 
     if config_file == '':
-        if args.config_file is not None:
+        if args.config_file:
             print("Error: cannot open config file '" + args.config_file + "'",
                   file=sys.stderr)
         else:
@@ -801,13 +801,13 @@ if __name__ == "__main__":
 
     conf = Config(config_file)
 
-    if args.get_avail is not None:
+    if args.get_avail:
         get_replay_list(Rtypes.RTMP, conf, args.get_avail, args.append)
         sys.exit(retval)
-    elif args.get_avail_mobile is not None:
+    elif args.get_avail_mobile:
         get_replay_list(Rtypes.HTTP, conf, args.get_avail_mobile, args.append)
         sys.exit(retval)
-    elif args.append is True:
+    elif args.append:
         parser.print_help()
         print("\n-a (--append) allowed only in combination with " +
               "-l (--get-avail) and -k (--get-avail-mobile)", file=sys.stderr)
@@ -828,10 +828,10 @@ if __name__ == "__main__":
     log_init(args.logfile)
 
     # list of files to download was specified
-    if args.get_list is not None:
+    if args.get_list:
         downloads_list = get_list_from_file(args.get_list)
     # single file to download was specified
-    elif args.download_file is not None:
+    elif args.download_file:
         downloads_list = [args.download_file]
 
     # number of concurrent processes
@@ -880,7 +880,7 @@ if __name__ == "__main__":
             done = True
             for s in work.pipeline:
                 t = s()
-                if t is False:
+                if not t:
                     done = False
 
             # print messages produced during this iterration
