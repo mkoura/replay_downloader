@@ -246,7 +246,7 @@ class Msgs:
     def _print_new(self, key: str, out=sys.stdout):
         for msglist in self.get_msglists_with_key(key):
             for msg in msglist.get_new():
-                print(str(msglist.text + " " + msg).strip(), file=out)
+                print('{} {}'.format(msglist.text, msg).strip(), file=out)
 
     def print_errors(self):
         """
@@ -267,7 +267,7 @@ class Msgs:
         """
         def _print(sym, msglist):
             for msg in msglist.get_new():
-                print(sym, end="")
+                print(sym, end='')
                 sys.stdout.flush()
 
         for i in self.get_msglists_with_key(MsgTypes.failed):
@@ -287,11 +287,11 @@ class Msgs:
             for li in self.get_msglists_with_key(key):
                 num = len(li.msglist)
                 if num > 0:
-                    print("" + li.text + " " + str(num) + " file(s):")
+                    print('{} {} file(s):'.format(li.text, num))
                     for f in li.msglist:
-                        print("    " + f[0])
+                        print('  {}'.format(f[0]))
 
-        print("")
+        print('')
 
         _print(MsgTypes.finished)
         _print(MsgTypes.failed)
@@ -325,10 +325,10 @@ class Download:
         is_tool(conf.COMMANDS.ffmpeg)
 
         self.conf = conf
-        self.out = {MsgTypes.active: MsgList("Downloading"),
-                    MsgTypes.finished: MsgList("Downloaded"),
-                    MsgTypes.skipped: MsgList("Skipped download of"),
-                    MsgTypes.failed: MsgList("Failed to download"),
+        self.out = {MsgTypes.active: MsgList('Downloading'),
+                    MsgTypes.finished: MsgList('Downloaded'),
+                    MsgTypes.skipped: MsgList('Skipped download of'),
+                    MsgTypes.failed: MsgList('Failed to download'),
                     MsgTypes.errors: MsgList()}
         out_add(self.out)
         self.destination = ''
@@ -347,7 +347,7 @@ class Download:
                 continue
             elif line.startswith('#'):
                 continue
-            elif line.startswith("http://"):
+            elif line.startswith('http://'):
                 retlist.append(FileRecord(Fileinfo(line, Rtypes.HTTP)))
             else:
                 retlist.append(FileRecord(Fileinfo('rtmp://' + line, Rtypes.RTMP)))
@@ -383,33 +383,33 @@ class Download:
                                     remove_ext(remote_file_name[7:]) + '.flv')
             res_type = Ftypes.FLV
             audio_format = Ftypes.MP3
-            command = [self.conf.COMMANDS.rtmpdump, "--hashes", "--live",
-                       "--rtmp", self.conf.RTMP.replay_rtmp + "/" +
-                       remote_file_name, "--pageUrl",
-                       self.conf.RTMP.referer, "--swfUrl",
-                       self.conf.RTMP.replay_url, "--swfVfy",
-                       self.conf.RTMP.player_url, "--flv", res_file]
+            command = [self.conf.COMMANDS.rtmpdump, '--hashes', '--live',
+                       '--rtmp', self.conf.RTMP.replay_rtmp + '/' +
+                       remote_file_name, '--pageUrl',
+                       self.conf.RTMP.referer, '--swfUrl',
+                       self.conf.RTMP.replay_url, '--swfVfy',
+                       self.conf.RTMP.player_url, '--flv', res_file]
         elif download_type is Rtypes.HTTP:
             # extract file name from URI
             fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
             res_file = os.path.join(self.destination, fname.group(1))
             res_type = Ftypes.MP4
             audio_format = Ftypes.AAC
-            command = [self.conf.COMMANDS.ffmpeg, "-i",
-                       remote_file_name, "-c", "copy", res_file]
+            command = [self.conf.COMMANDS.ffmpeg, '-i',
+                       remote_file_name, '-c', 'copy', res_file]
         else:
-            self.out[MsgTypes.errors].add("ERROR: download failed, " +
-                                          "unsupported download type for : " +
-                                          remote_file_name)
-            self.out[MsgTypes.failed].add("" + remote_file_name)
+            self.out[MsgTypes.errors].add(
+                'Error: download failed, unsupported download type for {}'
+                .format(remote_file_name))
+            self.out[MsgTypes.failed].add(remote_file_name)
             return None
         cur_fileinfo = Fileinfo(res_file, res_type, clname=type(self).__name__,
                                 audio_f=audio_format)
 
         if os.path.isfile(res_file):
-            self.out[MsgTypes.errors].add("WARNING: skipping download, " +
-                                          "file exists: " + res_file)
-            self.out[MsgTypes.skipped].add("" + res_file)
+            self.out[MsgTypes.errors].add(
+                'WARNING: skipping download, file exists: {}'.format(res_file))
+            self.out[MsgTypes.skipped].add(res_file)
             file_record.add(cur_fileinfo)
             self.finished_ready.append(file_record)
             return None
@@ -417,7 +417,7 @@ class Download:
             # run the command
             p = Popen(command, stdout=PIPE, stderr=PIPE)
             # add the file name to 'active' message queue
-            self.out[MsgTypes.active].add("" + res_file)
+            self.out[MsgTypes.active].add(res_file)
             # update file history
             file_record.add(cur_fileinfo)
             return Procinfo(p, file_record)
@@ -434,10 +434,10 @@ class Download:
         # get stdout and stderr of the command
         (out, err) = proc.communicate()
         if out:
-            logit("[download] stdout for " + filepath + ":")
+            logit('[download] stdout for {}:'.format(filepath))
             logit(out.decode('utf-8'))
         if err:
-            logit("[download] stderr for " + filepath + ":", logging.error)
+            logit('[download] stderr for {}:'.format(filepath), logging.error)
             logit(err.decode('utf-8'), logging.error)
 
         # If rtmpdump finishes with following message:
@@ -452,18 +452,18 @@ class Download:
 
         # check if download was successful
         if retcode == 0:
-            self.out[MsgTypes.finished].add("" + filepath)
+            self.out[MsgTypes.finished].add(filepath)
             # file is ready for further processing by next action in 'pipeline'
             self.finished_ready.append(procinfo.file_record)
         else:
             try:
-                os.rename(filepath, filepath + ".part")
-                logit("[rename] " + filepath + ".part", logging.error)
+                os.rename(filepath, filepath + '.part')
+                logit('[rename] {0} to {0}.part'.format(filepath), logging.error)
             except FileNotFoundError as e:
                 self.out[MsgTypes.errors].add(str(e))
-            self.out[MsgTypes.failed].add("" + filepath)
-            self.out[MsgTypes.errors].add("Error downloading " + filepath +
-                                          ": " + err.decode('utf-8'))
+            self.out[MsgTypes.failed].add(filepath)
+            self.out[MsgTypes.errors].add(
+                'Error downloading {}: {}'.format(filepath, err.decode('utf-8')))
             # remove last entry from file_record`
             proc.file_record.rec.pop()
 
@@ -479,10 +479,10 @@ class ExtractAudio:
         is_tool(conf.COMMANDS.ffmpeg)
 
         self.conf = conf
-        self.out = {MsgTypes.active: MsgList("Extracting audio"),
-                    MsgTypes.finished: MsgList("Audio extracting resulted in"),
-                    MsgTypes.skipped: MsgList("Skipped extracting audio of"),
-                    MsgTypes.failed: MsgList("Failed to extract audio"),
+        self.out = {MsgTypes.active: MsgList('Extracting audio'),
+                    MsgTypes.finished: MsgList('Audio extracting resulted in'),
+                    MsgTypes.skipped: MsgList('Skipped extracting audio of'),
+                    MsgTypes.failed: MsgList('Failed to extract audio'),
                     MsgTypes.errors: MsgList()}
         out_add(self.out)
         self.destination = ''
@@ -513,10 +513,10 @@ class ExtractAudio:
         file_type = file_record().type
         audio_format = file_record().audio_f
         if audio_format == '':
-            self.out[MsgTypes.errors].add("ERROR: failed to extract, " +
-                                          "audio format info not passed for " +
-                                          local_file_name)
-            self.out[MsgTypes.failed].add("" + local_file_name)
+            self.out[MsgTypes.errors].add(
+                'Error: failed to extract, audio format info not passed for {}'
+                .format(local_file_name))
+            self.out[MsgTypes.failed].add(local_file_name)
             return None
 
         if file_type == audio_format:
@@ -525,25 +525,25 @@ class ExtractAudio:
             self.finished_ready.append(file_record)
             return None
 
-        fname = "{}.{}".format(remove_ext(local_file_name),
+        fname = '{}.{}'.format(remove_ext(local_file_name),
                                file_ext_d[audio_format.name])
         res_file = os.path.join(self.destination, fname)
         cur_fileinfo = Fileinfo(res_file, audio_format, clname=type(self).__name__,
                                 audio_f=audio_format)
         if os.path.isfile(res_file):
-            self.out[MsgTypes.errors].add("WARNING: skipping extracting, " +
-                                          "file exists: " + res_file)
-            self.out[MsgTypes.skipped].add("" + res_file)
+            self.out[MsgTypes.errors].add(
+                'WARNING: skipping extracting, file exists: {}'.format(res_file))
+            self.out[MsgTypes.skipped].add(res_file)
             file_record.add(cur_fileinfo)
             self.finished_ready.append(file_record)
             return None
         else:
             # run the command
-            p = Popen([self.conf.COMMANDS.ffmpeg, "-i",
-                      local_file_name, "-vn", "-acodec", "copy", res_file],
+            p = Popen([self.conf.COMMANDS.ffmpeg, '-i',
+                      local_file_name, '-vn', '-acodec', 'copy', res_file],
                       stdout=PIPE, stderr=PIPE)
             # add the file name to 'active' message queue
-            self.out[MsgTypes.active].add("" + res_file)
+            self.out[MsgTypes.active].add(res_file)
             # update file history
             file_record.add(cur_fileinfo)
             return Procinfo(p, file_record)
@@ -559,26 +559,26 @@ class ExtractAudio:
         # get stdout and stderr of the command
         (out, err) = proc.communicate()
         if out:
-            logit("[extracting] stdout for " + filepath + ":")
+            logit('[extracting] stdout for {}:'.format(filepath))
             logit(out.decode('utf-8'))
         if err:
-            logit("[extracting] stderr for " + filepath + ":", logging.error)
+            logit('[extracting] stderr for {}'.format(filepath), logging.error)
             logit(err.decode('utf-8'), logging.error)
 
         # check if extracting was successful
         if retcode == 0:
-            self.out[MsgTypes.finished].add("" + filepath)
+            self.out[MsgTypes.finished].add(filepath)
             # file is ready for further processing by next action in 'pipeline'
             self.finished_ready.append(procinfo.file_record)
         else:
             try:
                 os.remove(filepath)
-                logit("[delete] " + filepath, logging.error)
+                logit('[delete] {}'.format(filepath), logging.error)
             except FileNotFoundError as e:
                 self.out[MsgTypes.errors].add(str(e))
-            self.out[MsgTypes.failed].add("" + filepath)
-            self.out[MsgTypes.errors].add("Error extracting " + filepath +
-                                          ": " + err.decode('utf-8'))
+            self.out[MsgTypes.failed].add(filepath)
+            self.out[MsgTypes.errors].add(
+                'Error extracting {}: {}'.format(filepath, err.decode('utf-8')))
             # remove last entry from file_record`
             proc.file_record.rec.pop()
 
@@ -590,7 +590,7 @@ class Cleanup:
     Delete all intermediate files. Callable object for work pipeline.
     """
     def __init__(self, to_do: list):
-        self.out = {MsgTypes.finished: MsgList("Deleted")}
+        self.out = {MsgTypes.finished: MsgList('Deleted')}
         out_add(self.out)
         self.finished_ready = []
         self.to_do = to_do
@@ -606,8 +606,8 @@ class Cleanup:
             for p in file_record.rec[:-1]:
                 try:
                     os.remove(p.path)
-                    logit("[cleanup] " + p.path)
-                    self.out[MsgTypes.finished].add("" + p.path)
+                    logit('[cleanup] {}'.format(p.path))
+                    self.out[MsgTypes.finished].add(p.path)
                 except FileNotFoundError:
                     pass
             # pass for further processing
@@ -662,7 +662,7 @@ def logit(message: str, method=logging.info):
 
     try:
         for each_line in message.splitlines():
-            method("" + each_line)
+            method(each_line)
     except EnvironmentError as e:
         print(str(e), file=sys.stderr)
 
@@ -687,7 +687,7 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
         elif replay_type == Rtypes.HTTP:
             conf_section = conf.HTTP
         else:
-            raise ValueError("Unrecognized replay type")
+            raise ValueError('Unrecognized replay type')
 
         with session() as c:
             c.post(conf_section.login_url, data=payload)
@@ -725,16 +725,16 @@ def is_tool(name) -> bool:
     Check if it's possible to run the tool.
     """
     try:
-        with open(os.devnull, "w") as devnull:
+        with open(os.devnull, 'w') as devnull:
             Popen([name], stdout=devnull, stderr=devnull)
     except OSError as e:
         estr = 'find' if e.errno == os.errno.ENOENT else 'run'
-        raise EnvironmentSanityError("Cannot {} the '{}' command"
-                                     .format(estr, name))
+        raise EnvironmentSanityError(
+            "Cannot {} the '{}' command".format(estr, name))
     return True
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import argparse
 
     retval = 0
@@ -795,10 +795,10 @@ if __name__ == "__main__":
 
     if config_file == '':
         if args.config_file:
-            print("Error: cannot open config file '" + args.config_file + "'",
+            print("Error: cannot open config file '{}'".format(args.config_file),
                   file=sys.stderr)
         else:
-            print("Error: no config file found.", file=sys.stderr)
+            print('Error: no config file found.', file=sys.stderr)
         sys.exit(1)
 
     conf = Config(config_file)
@@ -811,8 +811,8 @@ if __name__ == "__main__":
         sys.exit(retval)
     elif args.append:
         parser.print_help()
-        print("\n-a (--append) allowed only in combination with " +
-              "-l (--get-avail) and -k (--get-avail-mobile)", file=sys.stderr)
+        print('\n-a (--append) allowed only in combination with ' +
+              '-l (--get-avail) and -k (--get-avail-mobile)', file=sys.stderr)
         sys.exit(1)
 
     # instantiate "messages" and choose how its output will be presented
@@ -854,7 +854,7 @@ if __name__ == "__main__":
         downloads = Download(conf, to_download)
         extracting = ExtractAudio(conf, downloads.finished_ready)
     except EnvironmentSanityError as enve:
-        print("Error: " + str(enve), file=sys.stderr)
+        print('Error: {}'.format(enve), file=sys.stderr)
         sys.exit(1)
 
     # download setup
@@ -904,7 +904,7 @@ if __name__ == "__main__":
                     retval = 2
                     break
     except KeyboardInterrupt:
-        print(" Interrupting running processes...")
+        print(' Interrupting running processes...')
         retval = 1
         for l in work.pipeline:
             # kill all processes running in the background
@@ -917,8 +917,8 @@ if __name__ == "__main__":
 
                 filepath = procinfo.file_record().path
                 try:
-                    os.rename(filepath, filepath + ".part")
-                    logit("[rename] " + filepath + ".part", logging.error)
+                    os.rename(filepath, filepath + '.part')
+                    logit('[rename] {0} to {0}.part'.format(filepath), logging.error)
                 except FileNotFoundError as e:
                     print(str(e), file=sys.stderr)
 
