@@ -241,7 +241,7 @@ class Msgs:
         """
         Generator of message queues identified by 'key'.
         """
-        return (d[key] for d in _OUT if key in d)
+        return (msglist for msglist in _OUT[key]) if key in _OUT else iter(())
 
     def _print_new(self, key: str, out=sys.stdout):
         for msglist in self.get_msglists_with_key(key):
@@ -618,15 +618,18 @@ class Cleanup:
 # path to the log file
 LOGFILE = None
 
-# dist of dictionaries that map message queues (active, skipped, etc.)
-_OUT = []
+# dictionary of message queues (active, skipped, etc.)
+_OUT = {}
 
 
 def out_add(out: dict):
     """
-    Add dictionary to the list.
+    Add message queue to dictionary.
     """
-    _OUT.append(out)
+    for key in out:
+        # add message queue to dictionary;
+        # create the key if it doesn't exist yet
+        _OUT.setdefault(key, []).append(out[key])
 
 
 def remove_ext(filename: str):
