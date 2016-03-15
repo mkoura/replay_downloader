@@ -192,6 +192,9 @@ class Work():
     def __init__(self):
         self.pipeline = []
 
+    def __str__(self):
+        return str(self.pipeline)
+
     def add(self, action):
         """
         Add work (callable object) to pipeline.
@@ -207,6 +210,9 @@ class MsgList:
         self.msglist = []
         self.tstamp = 0  # last time the messages were displayed
         self.text = text
+
+    def __str__(self):
+        return '{}, {}, {}'.format(self.msglist, self.text, self.tstamp)
 
     def update_tstamp(self):
         self.tstamp = time.time()
@@ -304,6 +310,9 @@ class FileRecord:
     """
     def __init__(self, file_info: Fileinfo):
         self.rec = [file_info]
+
+    def __str__(self):
+        return str(self.rec)
 
     def add(self, file_info: Fileinfo):
         self.rec.append(file_info)
