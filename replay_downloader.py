@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 # Licence: MPL 2.0
-# Author: Martin Kourim <misc.kourim@gmail.com>
+# Author: Martin Kourim <kourim@protonmail.com>
 
 """
 Module for downloading files from http://replay.dzogchen.net.
