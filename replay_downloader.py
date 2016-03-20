@@ -740,9 +740,9 @@ def is_tool(name) -> bool:
         with open(os.devnull, 'w') as devnull:
             Popen([name], stdout=devnull, stderr=devnull)
     except OSError as e:
-        estr = 'find' if e.errno == os.errno.ENOENT else 'run'
         raise EnvironmentSanityError(
-            "Cannot {} the '{}' command".format(estr, name))
+            "Cannot {} the '{}' command".format(
+                'find' if e.errno == os.errno.ENOENT else 'run', name))
     return True
 
 
