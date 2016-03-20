@@ -899,7 +899,7 @@ if __name__ == '__main__':
 
             # print messages produced during this iterration
             msg_handler()
-            time.sleep(1)
+            time.sleep(0.5)
 
         if not args.quiet:
             msg.print_summary()
