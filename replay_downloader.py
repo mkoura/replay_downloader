@@ -90,7 +90,8 @@ class Config:
         """
         # default values
         self.cfg = configparser.ConfigParser()
-        self.cfg['DEFAULT'] = {'concurrency': '3'}
+        self.cfg['DEFAULT'] = {'concurrency': '3',
+                               'destination_dir': ''}
         self.cfg['AUTH'] = {'login': '', 'password': ''}
         self.cfg['COMMANDS'] = {'rtmpdump': 'rtmpdump', 'ffmpeg': 'ffmpeg'}
         self.cfg['RTMP'] = {'replay_url': 'http://webcast.dzogchen.net/index.php?id=replay',
@@ -111,6 +112,7 @@ class Config:
         # independent of specific source of configuration (e.g. ini file)
         self.DEFAULT = self.__Copts()
         self.DEFAULT.concurrency = self.cfg.getint('DEFAULT', 'concurrency')
+        self.DEFAULT.destination_dir = self.cfg['DEFAULT']['destination_dir']
         self.AUTH = self.__Copts()
         self.AUTH.login = self.cfg['AUTH']['login']
         self.AUTH.password = self.cfg['AUTH']['password']
@@ -852,6 +854,10 @@ if __name__ == '__main__':
     avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.DEFAULT.concurrency
 
+    # destination directory
+    destdir = args.destination if args.destination \
+        else conf.DEFAULT.destination_dir
+
     #
     # Create the work pipeline. When one step of the pipeline is finished
     # with processing one item from it's stack, the outcome is passed to next
@@ -876,7 +882,7 @@ if __name__ == '__main__':
     work.add(downloads_scheduler)
 
     # extract audio setup
-    extracting.set_destdir(args.destination)
+    extracting.set_destdir(destdir)
     extracting_scheduler = ProcScheduler(extracting)
     extracting_scheduler.avail_slots = avail_slots
     work.add(extracting_scheduler)
