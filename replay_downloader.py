@@ -91,7 +91,8 @@ class Config:
         # default values
         self.cfg = configparser.ConfigParser()
         self.cfg['DEFAULT'] = {'concurrency': '3',
-                               'destination_dir': ''}
+                               'destination_dir': '',
+                               'work_dir': ''}
         self.cfg['AUTH'] = {'login': '', 'password': ''}
         self.cfg['COMMANDS'] = {'rtmpdump': 'rtmpdump', 'ffmpeg': 'ffmpeg'}
         self.cfg['RTMP'] = {'replay_url': 'http://webcast.dzogchen.net/index.php?id=replay',
@@ -113,6 +114,7 @@ class Config:
         self.DEFAULT = self.__Copts()
         self.DEFAULT.concurrency = self.cfg.getint('DEFAULT', 'concurrency')
         self.DEFAULT.destination_dir = self.cfg['DEFAULT']['destination_dir']
+        self.DEFAULT.work_dir = self.cfg['DEFAULT']['work_dir']
         self.AUTH = self.__Copts()
         self.AUTH.login = self.cfg['AUTH']['login']
         self.AUTH.password = self.cfg['AUTH']['password']
@@ -858,6 +860,10 @@ if __name__ == '__main__':
     destdir = args.destination if args.destination \
         else conf.DEFAULT.destination_dir
 
+    # directory for intermediate files
+    workdir = args.work_dir if args.work_dir \
+        else conf.DEFAULT.work_dir
+
     #
     # Create the work pipeline. When one step of the pipeline is finished
     # with processing one item from it's stack, the outcome is passed to next
@@ -876,7 +882,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # download setup
-    downloads.set_destdir(args.work_dir)
+    downloads.set_destdir(workdir)
     downloads_scheduler = ProcScheduler(downloads)
     downloads_scheduler.avail_slots = avail_slots
     work.add(downloads_scheduler)
