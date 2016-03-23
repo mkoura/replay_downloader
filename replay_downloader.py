@@ -771,7 +771,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--concurrent', metavar='NUM', type=int,
                         help='number of concurrent downloads', default='-1')
     parser.add_argument('-d', '--destination', metavar='DIR',
-                        help='destination directory',
+                        help='directory where final outcome will be saved',
                         default='')
     parser.add_argument('-w', '--work-dir', metavar='DIR',
                         help='directory for intermediate files (current directory by default)',
@@ -856,7 +856,7 @@ if __name__ == '__main__':
     avail_slots = args.concurrent if args.concurrent > 0 \
         else conf.DEFAULT.concurrency
 
-    # destination directory
+    # directory where final outcome will be saved
     destdir = args.destination if args.destination \
         else conf.DEFAULT.destination_dir
 
