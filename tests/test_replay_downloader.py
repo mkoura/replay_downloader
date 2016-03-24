@@ -117,7 +117,7 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(downloads.finished_ready[0], file_record)
 
 
-class TestDecodings(unittest.TestCase):
+class TestExtractAudio(unittest.TestCase):
     def test_set_destdir(self):
         conf = Config()
         extracting = ExtractAudio(conf, [])
