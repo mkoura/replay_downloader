@@ -13,7 +13,7 @@ from replay_downloader import (
     MsgTypes,
     Config,
     # ProcScheduler,
-    # Work,
+    Work,
     # MsgList,
     # Msgs,
     FileRecord,
@@ -186,3 +186,18 @@ class TestExtractAudio(unittest.TestCase):
         self.assertEqual(ret, 0)
         self.assertEqual(extracting.out[MsgTypes.finished].msglist[0][0], '20150816.mp3')
         self.assertEqual(extracting.finished_ready[0], file_record)
+
+
+class TestWork(unittest.TestCase):
+    def test_init(self):
+        w = Work()
+        self.assertEqual(w.pipeline, [])
+
+    def test_srt(self):
+        w = Work()
+        self.assertEqual(str(w), '[]')
+
+    def test_add(self):
+        w = Work()
+        w.add('a')
+        self.assertEqual(w.pipeline, ['a'])
