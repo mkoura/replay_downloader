@@ -14,7 +14,7 @@ from replay_downloader import (
     Config,
     # ProcScheduler,
     Work,
-    # MsgList,
+    MsgList,
     # Msgs,
     FileRecord,
     Download,
@@ -201,3 +201,40 @@ class TestWork(unittest.TestCase):
         w = Work()
         w.add('a')
         self.assertEqual(w.pipeline, ['a'])
+
+
+class TestMsgList(unittest.TestCase):
+    def test_init(self):
+        m = MsgList('Test')
+        self.assertEqual(m.msglist, [])
+        self.assertEqual(m.tstamp, 0)
+        self.assertEqual(m.text, 'Test')
+        m2 = MsgList()
+        self.assertEqual(m2.text, '')
+
+    def test_srt(self):
+        m = MsgList('Test')
+        self.assertEqual(str(m), '[], Test, 0')
+
+    def test_update_tstamp(self):
+        m = MsgList('Test')
+        m.update_tstamp()
+        self.assertGreater(m.tstamp, 0)
+
+    def test_add(self):
+        m = MsgList('Test')
+        m.add('msg1')
+        self.assertEqual(m.msglist[0][0], 'msg1')
+        self.assertGreater(m.msglist[0][1], 0)
+
+    def test_get_new(self):
+        m = MsgList('Test')
+        with self.assertRaises(StopIteration):
+            next(m.get_new())
+        m.add('msg1')
+        msg = m.get_new()
+        self.assertEqual(next(msg), 'msg1')
+        with self.assertRaises(StopIteration):
+            next(msg)
+        m.add('msg2')
+        self.assertEqual(next(m.get_new()), 'msg2')
