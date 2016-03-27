@@ -157,12 +157,12 @@ class ProcScheduler:
         in the 'to_do' stack. Run up-to 'avail_slots' processes in parallel.
         """
         len_todo = len(self.to_do)
-        while (self.avail_slots != 0) and (len_todo != 0):
+        while (self.avail_slots > 0) and (len_todo > 0):
             procinfo = self.spawn_callback(self.to_do.pop())
+            len_todo -= 1
             if procinfo is not None:
                 self.running_procs.append(procinfo)
                 self.avail_slots -= 1
-                len_todo -= 1
 
         # return True if there is nothing left to do
         return(len_todo == 0)
@@ -332,6 +332,9 @@ class Download:
     """
     Download specified files. Schedulable object for 'ProcScheduler'.
     """
+
+    part_ext = '.part'
+
     def __init__(self, conf: Config, to_do: list):
         # check if necassary tools are available
         is_tool(conf.COMMANDS.rtmpdump)
@@ -401,7 +404,7 @@ class Download:
                        remote_file_name, '--pageUrl',
                        self.conf.RTMP.referer, '--swfUrl',
                        self.conf.RTMP.replay_url, '--swfVfy',
-                       self.conf.RTMP.player_url, '--flv', res_file]
+                       self.conf.RTMP.player_url, '--flv', res_file + self.part_ext]
         elif download_type is Rtypes.HTTP:
             # extract file name from URI
             fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
@@ -409,7 +412,7 @@ class Download:
             res_type = Ftypes.MP4
             audio_format = Ftypes.AAC
             command = [self.conf.COMMANDS.ffmpeg, '-i',
-                       remote_file_name, '-c', 'copy', res_file]
+                       remote_file_name, '-c', 'copy', res_file + self.part_ext]
         else:
             self.out[MsgTypes.errors].add(
                 'Error: download failed, unsupported download type for {}'
@@ -465,15 +468,15 @@ class Download:
 
         # check if download was successful
         if retcode == 0:
+            try:
+                os.rename(filepath + self.part_ext, filepath)
+                logit('[rename] {0}.{1} to {0}'.format(filepath, self.part_ext))
+            except FileNotFoundError:
+                pass
             self.out[MsgTypes.finished].add(filepath)
             # file is ready for further processing by next action in 'pipeline'
             self.finished_ready.append(procinfo.file_record)
         else:
-            try:
-                os.rename(filepath, filepath + '.part')
-                logit('[rename] {0} to {0}.part'.format(filepath), logging.error)
-            except FileNotFoundError as e:
-                self.out[MsgTypes.errors].add(str(e))
             self.out[MsgTypes.failed].add(filepath)
             self.out[MsgTypes.errors].add(
                 'Error downloading {}: {}'.format(filepath, err.decode('utf-8')))
@@ -487,6 +490,9 @@ class ExtractAudio:
     """
     Extract audio from specified files. Schedulable object for 'ProcScheduler'.
     """
+
+    part_ext = '.part'
+
     def __init__(self, conf: Config, to_do: list):
         # check if 'ffmpeg' is available
         is_tool(conf.COMMANDS.ffmpeg)
@@ -553,7 +559,7 @@ class ExtractAudio:
         else:
             # run the command
             p = Popen([self.conf.COMMANDS.ffmpeg, '-i',
-                      local_file_name, '-vn', '-acodec', 'copy', res_file],
+                      local_file_name, '-vn', '-acodec', 'copy', res_file + self.part_ext],
                       stdout=PIPE, stderr=PIPE)
             # add the file name to 'active' message queue
             self.out[MsgTypes.active].add(res_file)
@@ -580,13 +586,18 @@ class ExtractAudio:
 
         # check if extracting was successful
         if retcode == 0:
+            try:
+                os.rename(filepath + self.part_ext, filepath)
+                logit('[rename] {0}.{1} to {0}'.format(filepath, self.part_ext))
+            except FileNotFoundError:
+                pass
             self.out[MsgTypes.finished].add(filepath)
             # file is ready for further processing by next action in 'pipeline'
             self.finished_ready.append(procinfo.file_record)
         else:
             try:
-                os.remove(filepath)
-                logit('[delete] {}'.format(filepath), logging.error)
+                os.remove(filepath + self.part_ext)
+                logit('[delete] {}'.format(filepath + self.part_ext), logging.error)
             except FileNotFoundError as e:
                 self.out[MsgTypes.errors].add(str(e))
             self.out[MsgTypes.failed].add(filepath)
@@ -938,12 +949,5 @@ if __name__ == '__main__':
                 proc = procinfo.proc
                 if proc.poll() is None:
                     proc.kill()
-
-                filepath = procinfo.file_record().path
-                try:
-                    os.rename(filepath, filepath + '.part')
-                    logit('[rename] {0} to {0}.part'.format(filepath), logging.error)
-                except FileNotFoundError as e:
-                    print(str(e), file=sys.stderr)
 
     sys.exit(retval)
