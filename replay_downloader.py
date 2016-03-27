@@ -728,12 +728,8 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
     if outfile == '-':
         _get_session(sys.stdout)
     else:
-        if append:
-            with open(outfile, 'a') as f:
-                _get_session(f)
-        else:
-            with open(outfile, 'w') as f:
-                _get_session(f)
+        with open(outfile, 'a' if append else 'w') as f:
+            _get_session(f)
 
 
 def get_list_from_file(list_file: str) -> list:
