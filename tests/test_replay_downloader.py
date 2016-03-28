@@ -108,10 +108,13 @@ class TestDownloads(unittest.TestCase):
         self.assertEqual(file_record.rec, [Fileinfo('rtmp://foo', Rtypes.RTMP),
                                            Fileinfo('foo.flv', Ftypes.FLV,
                                                     'Download', Ftypes.MP3)])
+        os.chdir(os.path.dirname(__file__))
+        open('foo.flv.part', 'w')
         while (proc_info.proc.poll() is None):
             time.sleep(0.05)
 
         ret = downloads.finished_handler(proc_info)
+        os.remove('foo.flv')
         self.assertEqual(ret, 0)
         self.assertEqual(downloads.out[MsgTypes.finished].msglist[0][0], 'foo.flv')
         self.assertEqual(downloads.finished_ready[0], file_record)
@@ -179,10 +182,13 @@ class TestExtractAudio(unittest.TestCase):
                                                     audio_f=Ftypes.MP3),
                                            Fileinfo('20150816.mp3', Ftypes.MP3,
                                                     'ExtractAudio', Ftypes.MP3)])
+        os.chdir(os.path.dirname(__file__))
+        open('20150816.mp3.part', 'w')
         while (proc_info.proc.poll() is None):
             time.sleep(0.05)
 
         ret = extracting.finished_handler(proc_info)
+        os.remove('20150816.mp3')
         self.assertEqual(ret, 0)
         self.assertEqual(extracting.out[MsgTypes.finished].msglist[0][0], '20150816.mp3')
         self.assertEqual(extracting.finished_ready[0], file_record)

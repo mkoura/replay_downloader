@@ -469,19 +469,24 @@ class Download:
         # check if download was successful
         if retcode == 0:
             try:
+                # file.part should exist, rename it to strip the '.part'
                 os.rename(filepath + self.part_ext, filepath)
                 logit('[rename] {0}.{1} to {0}'.format(filepath, self.part_ext))
-            except FileNotFoundError:
-                pass
-            self.out[MsgTypes.finished].add(filepath)
-            # file is ready for further processing by next action in 'pipeline'
-            self.finished_ready.append(procinfo.file_record)
-        else:
+                self.out[MsgTypes.finished].add(filepath)
+                # file is ready for further processing by next action in 'pipeline'
+                self.finished_ready.append(procinfo.file_record)
+            except FileNotFoundError as e:
+                logit('[rename] failed: {}'.format(e), logging.error)
+                retcode = 1
+        if retcode != 0:
             self.out[MsgTypes.failed].add(filepath)
             self.out[MsgTypes.errors].add(
                 'Error downloading {}: {}'.format(filepath, err.decode('utf-8')))
-            # remove last entry from file_record`
-            proc.file_record.rec.pop()
+            # remove last entry from file_record
+            try:
+                proc.file_record.rec.pop()
+            except AttributeError:
+                pass
 
         return retcode
 
@@ -587,14 +592,16 @@ class ExtractAudio:
         # check if extracting was successful
         if retcode == 0:
             try:
+                # file.part should exist, rename it to strip the '.part'
                 os.rename(filepath + self.part_ext, filepath)
                 logit('[rename] {0}.{1} to {0}'.format(filepath, self.part_ext))
-            except FileNotFoundError:
-                pass
-            self.out[MsgTypes.finished].add(filepath)
-            # file is ready for further processing by next action in 'pipeline'
-            self.finished_ready.append(procinfo.file_record)
-        else:
+                self.out[MsgTypes.finished].add(filepath)
+                # file is ready for further processing by next action in 'pipeline'
+                self.finished_ready.append(procinfo.file_record)
+            except FileNotFoundError as e:
+                logit('[rename] failed: {}'.format(e), logging.error)
+                retcode = 1
+        if retcode != 0:
             try:
                 os.remove(filepath + self.part_ext)
                 logit('[delete] {}'.format(filepath + self.part_ext), logging.error)
@@ -603,8 +610,11 @@ class ExtractAudio:
             self.out[MsgTypes.failed].add(filepath)
             self.out[MsgTypes.errors].add(
                 'Error extracting {}: {}'.format(filepath, err.decode('utf-8')))
-            # remove last entry from file_record`
-            proc.file_record.rec.pop()
+            # remove last entry from file_record
+            try:
+                proc.file_record.rec.pop()
+            except AttributeError:
+                pass
 
         return retcode
 
