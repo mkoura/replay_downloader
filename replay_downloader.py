@@ -623,6 +623,9 @@ class Cleanup:
     """
     Delete all intermediate files. Callable object for work pipeline.
     """
+
+    part_ext = '.part'
+
     def __init__(self, to_do: list):
         self.out = {MsgTypes.finished: MsgList('Deleted')}
         out_add(self.out)
@@ -642,6 +645,9 @@ class Cleanup:
                     os.remove(p.path)
                     logit('[cleanup] {}'.format(p.path))
                     self.out[MsgTypes.finished].add(p.path)
+                    os.remove(p.path + self.part_ext)
+                    logit('[cleanup] {}'.format(p.path + self.part_ext))
+                    self.out[MsgTypes.finished].add(p.path + self.part_ext)
                 except FileNotFoundError:
                     pass
             # pass for further processing
