@@ -244,3 +244,27 @@ class TestMsgList(unittest.TestCase):
             next(msg)
         m.add('msg2')
         self.assertEqual(next(m.get_new()), 'msg2')
+
+
+class TestFileRecord(unittest.TestCase):
+    def test_init(self):
+        file_record = FileRecord(Fileinfo('file', Rtypes.HTTP))
+        self.assertEqual(file_record.rec[0], Fileinfo('file', Rtypes.HTTP))
+
+    def test_srt(self):
+        file_record = FileRecord(Fileinfo('file', Rtypes.HTTP))
+        self.assertEqual(
+            str(file_record),
+            "[Fileinfo(path='file', type=<Rtypes.HTTP: 1>, clname='', audio_f='', video_f='')]")
+
+    def test_add(self):
+        file_record = FileRecord(Fileinfo('file', Rtypes.HTTP))
+        file_record.add(Fileinfo('file2', Rtypes.RTMP))
+        self.assertEqual(file_record.rec, [Fileinfo('file', Rtypes.HTTP),
+                                           Fileinfo('file2', Rtypes.RTMP)])
+
+    def test_call(self):
+        file_record = FileRecord(Fileinfo('file', Rtypes.HTTP))
+        self.assertEqual(file_record(), Fileinfo('file', Rtypes.HTTP))
+        file_record.add(Fileinfo('file2', Rtypes.RTMP))
+        self.assertEqual(file_record(), Fileinfo('file2', Rtypes.RTMP))
