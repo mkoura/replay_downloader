@@ -218,6 +218,13 @@ class MsgList:
     def __str__(self):
         return '{}, {}, {}'.format(self.msglist, self.text, self.tstamp)
 
+    def __len__(self):
+        return len(self.msglist)
+
+    def __call__(self):
+        for msg in self.msglist:
+            yield msg[0]
+
     def update_tstamp(self):
         self.tstamp = time.time()
 
@@ -295,11 +302,11 @@ class Msgs:
         """
         def _print(key):
             for li in self.get_msglists_with_key(key):
-                num = len(li.msglist)
+                num = len(li)
                 if num > 0:
                     print('{} {} file(s):'.format(li.text, num))
-                    for f in li.msglist:
-                        print('  {}'.format(f[0]))
+                    for f in li():
+                        print('  {}'.format(f))
 
         print('')
 
@@ -942,12 +949,12 @@ if __name__ == '__main__':
         # determine return value
         if retval == 0:
             for m in msg.get_msglists_with_key(MsgTypes.failed):
-                if len(m.msglist) > 0:
+                if len(m) > 0:
                     retval = 1
                     break
         if retval == 0:
             for m in msg.get_msglists_with_key(MsgTypes.skipped):
-                if len(m.msglist) > 0:
+                if len(m) > 0:
                     retval = 2
                     break
     except KeyboardInterrupt:
