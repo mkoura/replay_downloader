@@ -345,8 +345,6 @@ class Download:
     Download specified files. Schedulable object for 'ProcScheduler'.
     """
 
-    part_ext = '.part'
-
     def __init__(self, conf: Config, to_do: list):
         # check if necassary tools are available
         is_tool(conf.COMMANDS.rtmpdump)
@@ -416,7 +414,7 @@ class Download:
                        remote_file_name, '--pageUrl',
                        self.conf.RTMP.referer, '--swfUrl',
                        self.conf.RTMP.replay_url, '--swfVfy',
-                       self.conf.RTMP.player_url, '--flv', res_file + self.part_ext]
+                       self.conf.RTMP.player_url, '--flv', res_file + _PART_EXT]
         elif download_type is Rtypes.HTTP:
             # extract file name from URI
             fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
@@ -424,7 +422,7 @@ class Download:
             res_type = Ftypes.MP4
             audio_format = Ftypes.AAC
             command = [self.conf.COMMANDS.ffmpeg, '-i',
-                       remote_file_name, '-c', 'copy', res_file + self.part_ext]
+                       remote_file_name, '-c', 'copy', res_file + _PART_EXT]
         else:
             self.out[MsgTypes.errors].add(
                 'Error: download failed, unsupported download type for {}'
@@ -482,8 +480,8 @@ class Download:
         if retcode == 0:
             try:
                 # file.part should exist, rename it to strip the '.part'
-                os.rename(filepath + self.part_ext, filepath)
-                logit('[rename] {0}.{1} to {0}'.format(filepath, self.part_ext))
+                os.rename(filepath + _PART_EXT, filepath)
+                logit('[rename] {0}.{1} to {0}'.format(filepath, _PART_EXT))
                 self.out[MsgTypes.finished].add(filepath)
                 # file is ready for further processing by next action in 'pipeline'
                 self.finished_ready.append(procinfo.file_record)
@@ -504,8 +502,6 @@ class ExtractAudio:
     """
     Extract audio from specified files. Schedulable object for 'ProcScheduler'.
     """
-
-    part_ext = '.part'
 
     def __init__(self, conf: Config, to_do: list):
         # check if 'ffmpeg' is available
@@ -573,7 +569,7 @@ class ExtractAudio:
         else:
             # run the command
             p = Popen([self.conf.COMMANDS.ffmpeg, '-i',
-                      local_file_name, '-vn', '-acodec', 'copy', res_file + self.part_ext],
+                      local_file_name, '-vn', '-acodec', 'copy', res_file + _PART_EXT],
                       stdout=PIPE, stderr=PIPE)
             # add the file name to 'active' message queue
             self.out[MsgTypes.active].add(res_file)
@@ -602,8 +598,8 @@ class ExtractAudio:
         if retcode == 0:
             try:
                 # file.part should exist, rename it to strip the '.part'
-                os.rename(filepath + self.part_ext, filepath)
-                logit('[rename] {0}.{1} to {0}'.format(filepath, self.part_ext))
+                os.rename(filepath + _PART_EXT, filepath)
+                logit('[rename] {0}.{1} to {0}'.format(filepath, _PART_EXT))
                 self.out[MsgTypes.finished].add(filepath)
                 # file is ready for further processing by next action in 'pipeline'
                 self.finished_ready.append(procinfo.file_record)
@@ -612,8 +608,8 @@ class ExtractAudio:
                 retcode = 1
         if retcode != 0:
             try:
-                os.remove(filepath + self.part_ext)
-                logit('[delete] {}'.format(filepath + self.part_ext), logging.error)
+                os.remove(filepath + _PART_EXT)
+                logit('[delete] {}'.format(filepath + _PART_EXT), logging.error)
             except FileNotFoundError as e:
                 self.out[MsgTypes.errors].add(str(e))
             self.out[MsgTypes.failed].add(filepath)
@@ -629,8 +625,6 @@ class Cleanup:
     """
     Delete all intermediate files. Callable object for work pipeline.
     """
-
-    part_ext = '.part'
 
     def __init__(self, to_do: list):
         self.out = {MsgTypes.finished: MsgList('Deleted')}
@@ -651,9 +645,9 @@ class Cleanup:
                     os.remove(p.path)
                     logit('[cleanup] {}'.format(p.path))
                     self.out[MsgTypes.finished].add(p.path)
-                    os.remove(p.path + self.part_ext)
-                    logit('[cleanup] {}'.format(p.path + self.part_ext))
-                    self.out[MsgTypes.finished].add(p.path + self.part_ext)
+                    os.remove(p.path + _PART_EXT)
+                    logit('[cleanup] {}'.format(p.path + _PART_EXT))
+                    self.out[MsgTypes.finished].add(p.path + _PART_EXT)
                 except FileNotFoundError:
                     pass
             # pass for further processing
@@ -666,6 +660,9 @@ LOGFILE = None
 
 # dictionary of message queues (active, skipped, etc.)
 _OUT = {}
+
+# extension of file that is not ready yet
+_PART_EXT = '.part'
 
 
 def out_add(out: dict):
