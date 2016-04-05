@@ -34,10 +34,10 @@ class TestDownloads(unittest.TestCase):
     def test_parse_todownload_list(self):
         l = [' # foo', 'bar', 'http://baz', ' foo1', 'http://bar1 ']
         down_list = Download.parse_todownload_list(l)
-        self.assertEqual(down_list[0](), Fileinfo(path='rtmp://bar', type=Rtypes.RTMP))
-        self.assertEqual(down_list[1](), Fileinfo(path='http://baz', type=Rtypes.HTTP))
-        self.assertEqual(down_list[2](), Fileinfo(path='rtmp://foo1', type=Rtypes.RTMP))
-        self.assertEqual(down_list[3](), Fileinfo(path='http://bar1', type=Rtypes.HTTP))
+        self.assertEqual(down_list[0][-1], Fileinfo(path='rtmp://bar', type=Rtypes.RTMP))
+        self.assertEqual(down_list[1][-1], Fileinfo(path='http://baz', type=Rtypes.HTTP))
+        self.assertEqual(down_list[2][-1], Fileinfo(path='rtmp://foo1', type=Rtypes.RTMP))
+        self.assertEqual(down_list[3][-1], Fileinfo(path='http://bar1', type=Rtypes.HTTP))
 
     def test_set_destdir(self):
         conf = Config()
@@ -74,8 +74,8 @@ class TestDownloads(unittest.TestCase):
         file_record = FileRecord(Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
                                           Rtypes.HTTP))
         proc_info = downloads.spawn(file_record)
-        self.assertEqual(file_record(), Fileinfo('20150816.mp4', Ftypes.MP4,
-                                                 'Download', Ftypes.AAC))
+        self.assertEqual(file_record[-1], Fileinfo('20150816.mp4', Ftypes.MP4,
+                                                   'Download', Ftypes.AAC))
         self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
 
     def test_spawn_unknown_type(self):
@@ -85,7 +85,7 @@ class TestDownloads(unittest.TestCase):
 
         file_record = FileRecord(Fileinfo('foo', 20))
         ret = downloads.spawn(file_record)
-        self.assertEqual(ret, None)
+        self.assertIsNone(ret)
 
     def test_spawn_file_exists(self):
         conf = Config()
@@ -95,7 +95,7 @@ class TestDownloads(unittest.TestCase):
         os.chdir(os.path.dirname(__file__))
         file_record = FileRecord(Fileinfo('rtmp://existing_file', Rtypes.RTMP))
         ret = downloads.spawn(file_record)
-        self.assertEqual(ret, None)
+        self.assertIsNone(ret)
 
     def test_finished_rtmp(self):
         conf = Config()
@@ -143,10 +143,11 @@ class TestExtractAudio(unittest.TestCase):
         file_record = FileRecord(Fileinfo('20150816.flv', Ftypes.FLV,
                                           audio_f=Ftypes.MP3))
         proc_info = extracting.spawn(file_record)
-        self.assertEqual(file_record(), Fileinfo('20150816.mp3',
-                                                 Ftypes.MP3,
-                                                 'ExtractAudio',
-                                                 Ftypes.MP3))
+        self.assertIsNot(proc_info, None)
+        self.assertEqual(file_record[-1], Fileinfo('20150816.mp3',
+                                                   Ftypes.MP3,
+                                                   'ExtractAudio',
+                                                   Ftypes.MP3))
         self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
 
     def test_spawn_same_type(self):
@@ -156,7 +157,7 @@ class TestExtractAudio(unittest.TestCase):
 
         file_record = FileRecord(Fileinfo('20150816.mp3', 'mp3', audio_f='mp3'))
         ret = extracting.spawn(file_record)
-        self.assertEqual(ret, None)
+        self.assertIsNone(ret)
 
     def test_spawn_file_exists(self):
         conf = Config()
@@ -167,7 +168,7 @@ class TestExtractAudio(unittest.TestCase):
         file_record = FileRecord(Fileinfo('existing_file.flv', Ftypes.FLV,
                                           audio_f=Ftypes.MP3))
         ret = extracting.spawn(file_record)
-        self.assertEqual(ret, None)
+        self.assertIsNone(ret)
 
     def test_finished_mp3(self):
         conf = Config()
@@ -177,11 +178,12 @@ class TestExtractAudio(unittest.TestCase):
         file_record = FileRecord(Fileinfo('20150816.flv', Ftypes.FLV,
                                           audio_f=Ftypes.MP3))
         proc_info = extracting.spawn(file_record)
-        self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
+        self.assertIsNot(proc_info, None)
         self.assertEqual(file_record.rec, [Fileinfo('20150816.flv', Ftypes.FLV,
                                                     audio_f=Ftypes.MP3),
                                            Fileinfo('20150816.mp3', Ftypes.MP3,
                                                     'ExtractAudio', Ftypes.MP3)])
+        self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
         os.chdir(os.path.dirname(__file__))
         open('20150816.mp3.part', 'w')
         while (proc_info.proc.poll() is None):
@@ -265,6 +267,6 @@ class TestFileRecord(unittest.TestCase):
 
     def test_call(self):
         file_record = FileRecord(Fileinfo('file', Rtypes.HTTP))
-        self.assertEqual(file_record(), Fileinfo('file', Rtypes.HTTP))
+        self.assertEqual(file_record[-1], Fileinfo('file', Rtypes.HTTP))
         file_record.add(Fileinfo('file2', Rtypes.RTMP))
-        self.assertEqual(file_record(), Fileinfo('file2', Rtypes.RTMP))
+        self.assertEqual(file_record[-1], Fileinfo('file2', Rtypes.RTMP))

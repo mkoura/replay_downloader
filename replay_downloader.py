@@ -325,14 +325,17 @@ class FileRecord:
     def __str__(self):
         return str(self.rec)
 
+    def __getitem__(self, position) -> Fileinfo:
+        return self.rec[position]
+
     def add(self, file_info: Fileinfo):
         self.rec.append(file_info)
 
-    def __call__(self) -> Fileinfo:
-        """
-        Return current state of the file (i.e. last Fileinfo).
-        """
-        return self.rec[-1]
+    def delete(self):
+        try:
+            self.rec.pop()
+        except AttributeError:
+            pass
 
 
 class Download:
@@ -397,8 +400,8 @@ class Download:
         Run command for downloading the file in the background
         and record corresponding metadata.
         """
-        remote_file_name = file_record().path
-        download_type = file_record().type
+        remote_file_name = file_record[-1].path
+        download_type = file_record[-1].type
 
         if download_type is Rtypes.RTMP:
             # add destination, strip 'rtmp://', strip extension, append '.flv'
@@ -450,8 +453,8 @@ class Download:
         Actions performed when download is finished.
         """
         proc = procinfo.proc
-        filepath = procinfo.file_record().path
-        filetype = procinfo.file_record().type
+        filepath = procinfo.file_record[-1].path
+        filetype = procinfo.file_record[-1].type
         retcode = proc.poll()
 
         # get stdout and stderr of the command
@@ -490,10 +493,7 @@ class Download:
             self.out[MsgTypes.errors].add(
                 'Error downloading {}: {}'.format(filepath, err.decode('utf-8')))
             # remove last entry from file_record
-            try:
-                proc.file_record.rec.pop()
-            except AttributeError:
-                pass
+            proc.file_record.delete()
 
         return retcode
 
@@ -540,9 +540,9 @@ class ExtractAudio:
         Run command for extracting the audio in the background
         and record corresponding metadata.
         """
-        local_file_name = file_record().path
-        file_type = file_record().type
-        audio_format = file_record().audio_f
+        local_file_name = file_record[-1].path
+        file_type = file_record[-1].type
+        audio_format = file_record[-1].audio_f
         if audio_format == '':
             self.out[MsgTypes.errors].add(
                 'Error: failed to extract, audio format info not passed for {}'
@@ -584,7 +584,7 @@ class ExtractAudio:
         Actions performed when extracting is finished.
         """
         proc = procinfo.proc
-        filepath = procinfo.file_record().path
+        filepath = procinfo.file_record[-1].path
         retcode = proc.poll()
 
         # get stdout and stderr of the command
@@ -618,10 +618,7 @@ class ExtractAudio:
             self.out[MsgTypes.errors].add(
                 'Error extracting {}: {}'.format(filepath, err.decode('utf-8')))
             # remove last entry from file_record
-            try:
-                proc.file_record.rec.pop()
-            except AttributeError:
-                pass
+            proc.file_record.delete()
 
         return retcode
 
@@ -647,7 +644,7 @@ class Cleanup:
         length = len(self.to_do)
         for r in range(length):
             file_record = self.to_do.pop()
-            for p in file_record.rec[:-1]:
+            for p in file_record[:-1]:
                 try:
                     os.remove(p.path)
                     logit('[cleanup] {}'.format(p.path))
