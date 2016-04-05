@@ -224,6 +224,10 @@ class MsgList:
     def __getitem__(self, position):
         return self.msglist[position]
 
+    def __iter__(self):
+        for i in self.msglist:
+            yield i
+
     def update_tstamp(self):
         self.tstamp = time.time()
 
@@ -327,8 +331,12 @@ class FileRecord:
     def __len__(self):
         return len(self.rec)
 
-    def __getitem__(self, position) -> Fileinfo:
+    def __getitem__(self, position):
         return self.rec[position]
+
+    def __iter__(self):
+        for i in self.rec:
+            yield i
 
     def add(self, file_info: Fileinfo):
         self.rec.append(file_info)
