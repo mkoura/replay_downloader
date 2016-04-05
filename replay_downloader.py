@@ -221,9 +221,8 @@ class MsgList:
     def __len__(self):
         return len(self.msglist)
 
-    def __call__(self):
-        for msg in self.msglist:
-            yield msg[0]
+    def __getitem__(self, position):
+        return self.msglist[position]
 
     def update_tstamp(self):
         self.tstamp = time.time()
@@ -305,8 +304,8 @@ class Msgs:
                 num = len(li)
                 if num > 0:
                     print('{} {} file(s):'.format(li.text, num))
-                    for f in li():
-                        print('  {}'.format(f))
+                    for f in li:
+                        print('  {}'.format(f[0]))
 
         print('')
 
