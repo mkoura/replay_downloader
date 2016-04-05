@@ -324,6 +324,9 @@ class FileRecord:
     def __str__(self):
         return str(self.rec)
 
+    def __len__(self):
+        return len(self.rec)
+
     def __getitem__(self, position) -> Fileinfo:
         return self.rec[position]
 
