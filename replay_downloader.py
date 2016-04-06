@@ -357,7 +357,7 @@ class Download:
                     MsgTypes.failed: MsgList('Failed to download'),
                     MsgTypes.errors: MsgList()}
         out_add(self.out)
-        self.destination = ''
+        self._destination = ''
         self.finished_ready = []
         self.to_do = to_do
 
@@ -380,7 +380,12 @@ class Download:
 
         return retlist
 
-    def set_destdir(self, destdir: str):
+    @property
+    def destination(self):
+        return self._destination
+
+    @destination.setter
+    def destination(self, destdir: str):
         """
         Set directory where the downloaded files will be saved.
         """
@@ -390,7 +395,7 @@ class Download:
         destdir = os.path.expanduser(destdir)
         try:
             os.makedirs(destdir)
-            self.destination = destdir
+            self._destination = destdir
         except OSError:
             if not os.path.isdir(destdir):
                 raise
@@ -514,11 +519,16 @@ class ExtractAudio:
                     MsgTypes.failed: MsgList('Failed to extract audio'),
                     MsgTypes.errors: MsgList()}
         out_add(self.out)
-        self.destination = ''
+        self._destination = ''
         self.finished_ready = []
         self.to_do = to_do
 
-    def set_destdir(self, destdir: str):
+    @property
+    def destination(self):
+        return self._destination
+
+    @destination.setter
+    def destination(self, destdir: str):
         """
         Set directory where the extracted audio files will be saved.
         """
@@ -528,10 +538,10 @@ class ExtractAudio:
         destdir = os.path.expanduser(destdir)
         try:
             os.makedirs(destdir)
+            self._destination = destdir
         except OSError:
             if not os.path.isdir(destdir):
                 raise
-        self.destination = destdir
 
     def spawn(self, file_record: list) -> Procinfo:
         """
@@ -908,13 +918,13 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # download setup
-    downloads.set_destdir(workdir)
+    downloads.destination = workdir
     downloads_scheduler = ProcScheduler(downloads)
     downloads_scheduler.avail_slots = avail_slots
     work.add(downloads_scheduler)
 
     # extract audio setup
-    extracting.set_destdir(destdir)
+    extracting.destination = destdir
     extracting_scheduler = ProcScheduler(extracting)
     extracting_scheduler.avail_slots = avail_slots
     work.add(extracting_scheduler)

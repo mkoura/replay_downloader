@@ -44,7 +44,7 @@ class TestDownloads(unittest.TestCase):
         downloads = Download(conf, [])
         destdir = 'destdir'
 
-        downloads.set_destdir(destdir)
+        downloads.destination = destdir
         self.assertEqual(downloads.destination, destdir)
         self.assertTrue(os.path.isdir(destdir))
         try:
@@ -126,7 +126,7 @@ class TestExtractAudio(unittest.TestCase):
         extracting = ExtractAudio(conf, [])
         destdir = 'destdir'
 
-        extracting.set_destdir(destdir)
+        extracting.destination = destdir
         self.assertEqual(extracting.destination, destdir)
         self.assertTrue(os.path.isdir(destdir))
         try:
