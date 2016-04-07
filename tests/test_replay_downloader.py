@@ -69,6 +69,7 @@ class TestDownloads(unittest.TestCase):
     def test_spawn_http(self):
         conf = Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
+        print("conf.COMMANDS.rtmpdump == {}".format(conf.COMMANDS.rtmpdump))
         downloads = Download(conf, [])
 
         file_record = FileRecord(Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
