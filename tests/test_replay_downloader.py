@@ -41,6 +41,8 @@ class TestDownloads(unittest.TestCase):
 
     def test_set_destdir(self):
         conf = Config()
+        conf.COMMANDS.rtmpdump = '/bin/true'
+        conf.COMMANDS.ffmpeg = '/bin/true'
         downloads = Download(conf, [])
         destdir = 'destdir'
 
@@ -69,7 +71,7 @@ class TestDownloads(unittest.TestCase):
     def test_spawn_http(self):
         conf = Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
-        print("conf.COMMANDS.rtmpdump == {}".format(conf.COMMANDS.rtmpdump))
+        conf.COMMANDS.ffmpeg = '/bin/true'
         downloads = Download(conf, [])
 
         file_record = FileRecord(Fileinfo('replay/mp4:20150816.mp4/playlist.m3u8',
@@ -82,6 +84,7 @@ class TestDownloads(unittest.TestCase):
     def test_spawn_unknown_type(self):
         conf = Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
+        conf.COMMANDS.ffmpeg = '/bin/true'
         downloads = Download(conf, [])
 
         file_record = FileRecord(Fileinfo('foo', 20))
@@ -91,6 +94,7 @@ class TestDownloads(unittest.TestCase):
     def test_spawn_file_exists(self):
         conf = Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
+        conf.COMMANDS.ffmpeg = '/bin/true'
         downloads = Download(conf, [])
 
         os.chdir(os.path.dirname(__file__))
@@ -101,6 +105,7 @@ class TestDownloads(unittest.TestCase):
     def test_finished_rtmp(self):
         conf = Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
+        conf.COMMANDS.ffmpeg = '/bin/true'
         downloads = Download(conf, [])
 
         file_record = FileRecord(Fileinfo('rtmp://foo', Rtypes.RTMP))
@@ -124,6 +129,8 @@ class TestDownloads(unittest.TestCase):
 class TestExtractAudio(unittest.TestCase):
     def test_set_destdir(self):
         conf = Config()
+        conf.COMMANDS.rtmpdump = '/bin/true'
+        conf.COMMANDS.ffmpeg = '/bin/true'
         extracting = ExtractAudio(conf, [])
         destdir = 'destdir'
 
@@ -138,6 +145,7 @@ class TestExtractAudio(unittest.TestCase):
 
     def test_spawn(self):
         conf = Config()
+        conf.COMMANDS.rtmpdump = '/bin/true'
         conf.COMMANDS.ffmpeg = '/bin/true'
         extracting = ExtractAudio(conf, [])
 
@@ -153,6 +161,7 @@ class TestExtractAudio(unittest.TestCase):
 
     def test_spawn_same_type(self):
         conf = Config()
+        conf.COMMANDS.rtmpdump = '/bin/true'
         conf.COMMANDS.ffmpeg = '/bin/true'
         extracting = ExtractAudio(conf, [])
 
@@ -162,6 +171,7 @@ class TestExtractAudio(unittest.TestCase):
 
     def test_spawn_file_exists(self):
         conf = Config()
+        conf.COMMANDS.rtmpdump = '/bin/true'
         conf.COMMANDS.ffmpeg = '/bin/true'
         extracting = ExtractAudio(conf, [])
 
@@ -173,6 +183,7 @@ class TestExtractAudio(unittest.TestCase):
 
     def test_finished_mp3(self):
         conf = Config()
+        conf.COMMANDS.rtmpdump = '/bin/true'
         conf.COMMANDS.ffmpeg = '/bin/true'
         extracting = ExtractAudio(conf, [])
 
