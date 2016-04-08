@@ -782,7 +782,7 @@ def is_tool(name) -> bool:
     except OSError as e:
         raise EnvironmentSanityError(
             "Cannot {} the '{}' command".format(
-                'find' if e.errno == os.errno.ENOENT else 'run', name))
+                'find' if e.errno == os.errno.ENOENT else 'run', name)) from e
     return True
 
 
