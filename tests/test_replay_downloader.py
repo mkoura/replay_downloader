@@ -244,6 +244,13 @@ class TestMsgList(unittest.TestCase):
         m.add('msg2')
         self.assertEqual(len(m), 2)
 
+    def test_getitem(self):
+        m = MsgList('Test')
+        m.add('msg1')
+        self.assertEqual(m[0][0], 'msg1')
+        m.add('msg2')
+        self.assertEqual(m[1][0], 'msg2')
+
     def test_update_tstamp(self):
         m = MsgList('Test')
         m.update_tstamp()
