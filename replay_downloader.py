@@ -4,6 +4,7 @@
 # Licence: MPL 2.0
 # Author: Martin Kourim <kourim@protonmail.com>
 
+# pylint: disable=too-many-lines
 # pylint doesn't handle enums correctly
 # pylint: disable=redefined-variable-type
 
@@ -16,7 +17,9 @@ It can download from both standard replay and mobile replay.
 import os
 import re
 import sys
+import signal
 import time
+import traceback
 import logging
 import collections
 import configparser
@@ -25,12 +28,12 @@ from enum import Enum
 from subprocess import Popen, PIPE
 from requests import session
 
-
+# for compatibility with older python
 try:
     FileNotFoundError
 except NameError:
     # pylint: disable=redefined-builtin
-    FileNotFoundError = IOError
+    FileNotFoundError = OSError
 
 
 # file path, type, class that created the record, audio format, video format
@@ -47,6 +50,17 @@ class EnvironmentSanityError(EnvironmentError):
     """
     Raise this when environment does not meet expectations.
     """
+
+
+class ExitCodes:
+    """
+    Exit codes used in main program.
+    """
+    SUCCESS = 0
+    FAIL = 1
+    INCOMPLETE = 2
+    INTERRUPTED = 3
+    CONFIG = 4
 
 
 class Rtypes(Enum):
@@ -421,9 +435,11 @@ class Download:
         download_type = file_record[-1].type
 
         if download_type is Rtypes.RTMP:
-            # add destination, strip 'rtmp://', strip extension, append '.flv'
+            # strip 'rtmp://'
+            remote_file_name = remote_file_name[7:]
+            # add destination, strip extension, append '.flv'
             res_file = os.path.join(self.destination,
-                                    remove_ext(remote_file_name[7:]) + '.flv')
+                                    remove_ext(remote_file_name) + '.flv')
             res_type = Ftypes.FLV
             audio_format = Ftypes.MP3
             command = [self.conf.COMMANDS.rtmpdump, '--hashes', '--live',
@@ -498,7 +514,7 @@ class Download:
             try:
                 # file.part should exist, rename it to strip the '.part'
                 os.rename(filepath + _PART_EXT, filepath)
-                logit('[rename] {0}.{1} to {0}'.format(filepath, _PART_EXT))
+                logit('[rename] {0}{1} to {0}'.format(filepath, _PART_EXT))
                 self.out[MsgTypes.finished].add(filepath)
                 # file is ready for further processing by next action in 'pipeline'
                 self.finished_ready.append(procinfo.file_record)
@@ -510,7 +526,7 @@ class Download:
             self.out[MsgTypes.errors].add(
                 'Error downloading {}: {}'.format(filepath, err.decode('utf-8')))
             # remove last entry from file_record
-            proc.file_record.delete()
+            procinfo.file_record.delete()
 
         return retcode
 
@@ -550,10 +566,10 @@ class ExtractAudio:
         destdir = os.path.expanduser(destdir)
         try:
             os.makedirs(destdir)
-            self._destination = destdir
         except OSError:
             if not os.path.isdir(destdir):
                 raise
+        self._destination = destdir
 
     def spawn(self, file_record: list) -> Procinfo:
         """
@@ -578,7 +594,7 @@ class ExtractAudio:
 
         fname = '{}.{}'.format(remove_ext(local_file_name),
                                file_ext_d[audio_format.name])
-        res_file = os.path.join(self.destination, fname)
+        res_file = os.path.join(self._destination, fname)
         cur_fileinfo = Fileinfo(res_file, audio_format, clname=type(self).__name__,
                                 audio_f=audio_format)
         if os.path.isfile(res_file):
@@ -630,7 +646,7 @@ class ExtractAudio:
             self.out[MsgTypes.errors].add(
                 'Error extracting {}: {}'.format(filepath, err.decode('utf-8')))
             # remove last entry from file_record
-            proc.file_record.delete()
+            procinfo.file_record.delete()
 
         return retcode
 
@@ -667,6 +683,37 @@ class Cleanup:
             # pass for further processing
             self.finished_ready.append(file_record)
         return True
+
+
+class CleanExit:
+    """
+    Clean on exit.
+    """
+
+    def __init__(self, pipeline):
+        self.pipeline = pipeline
+
+    def __enter__(self):
+        signal.signal(signal.SIGTERM, lambda *args: sys.exit(ExitCodes.INTERRUPTED))
+
+    def __exit__(self, exc_type, value, trace):
+        try:
+            for task in self.pipeline:
+                # kill all processes running in the background
+                if not hasattr(task, 'running_procs'):
+                    continue
+                for proc_info in task.running_procs:
+                    proc_o = proc_info.proc
+                    if proc_o.poll() is None:
+                        proc_o.kill()
+        # pylint: disable=broad-except
+        except Exception:
+            traceback.print_exc()
+
+        if exc_type is KeyboardInterrupt:
+            sys.exit(ExitCodes.INTERRUPTED)
+
+        return exc_type is None
 
 
 # path to the log file
@@ -791,7 +838,7 @@ def is_tool(name) -> bool:
 
 
 if __name__ == '__main__':
-    retval = 0
+    retval = ExitCodes.SUCCESS
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config-file', metavar='FILE',
@@ -820,15 +867,15 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument('-q', '--quiet', help='even less verbose output',
                         action='store_true')
-    parser.add_argument('-n', '--no-cleanup',
-                        help='don\'t delete intermediate files',
+    parser.add_argument('--cleanup',
+                        help='delete intermediate files',
                         action='store_true')
     args = parser.parse_args()
 
     # no option was passed to the program
     if len(sys.argv) <= 1:
         parser.print_help()
-        sys.exit(1)
+        sys.exit(ExitCodes.CONFIG)
 
     # config file specified on command line
     if args.config_file:
@@ -853,7 +900,7 @@ if __name__ == '__main__':
                   file=sys.stderr)
         else:
             print('Error: no config file found.', file=sys.stderr)
-        sys.exit(1)
+        sys.exit(ExitCodes.CONFIG)
 
     cfg = Config(config_file)
 
@@ -867,7 +914,7 @@ if __name__ == '__main__':
         parser.print_help()
         print('\n-a (--append) allowed only in combination with ' +
               '-l (--get-avail) and -k (--get-avail-mobile)', file=sys.stderr)
-        sys.exit(1)
+        sys.exit(ExitCodes.CONFIG)
 
     # instantiate "messages" and choose how its output will be presented
     messages = Msgs()
@@ -917,7 +964,7 @@ if __name__ == '__main__':
         extracting = ExtractAudio(cfg, downloads.finished_ready)
     except EnvironmentSanityError as enve:
         print('Error: {}'.format(enve), file=sys.stderr)
-        sys.exit(1)
+        sys.exit(ExitCodes.CONFIG)
 
     # download setup
     downloads.destination = workdir
@@ -931,12 +978,12 @@ if __name__ == '__main__':
     extracting_scheduler.avail_slots = avail_slots
     work.add(extracting_scheduler)
 
-    if not args.no_cleanup:
+    if args.cleanup:
         # cleanup setup
         cleanup = Cleanup(extracting.finished_ready)
         work.add(cleanup)
 
-    try:
+    with CleanExit(work.pipeline):
         done = False
 
         # loop until there's no work left to do
@@ -958,23 +1005,12 @@ if __name__ == '__main__':
         if retval == 0:
             for m in messages.get_msglists_with_key(MsgTypes.failed):
                 if len(m) > 0:
-                    retval = 1
+                    retval = ExitCodes.FAIL
                     break
         if retval == 0:
             for m in messages.get_msglists_with_key(MsgTypes.skipped):
                 if len(m) > 0:
-                    retval = 2
+                    retval = ExitCodes.INCOMPLETE
                     break
-    except KeyboardInterrupt:
-        print(' Interrupting running processes...')
-        retval = 1
-        for l in work.pipeline:
-            # kill all processes running in the background
-            if not hasattr(l, 'running_procs'):
-                continue
-            for proc_info in l.running_procs:
-                proc_o = proc_info.proc
-                if proc_o.poll() is None:
-                    proc_o.kill()
 
     sys.exit(retval)
