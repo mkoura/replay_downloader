@@ -634,6 +634,7 @@ class ExtractAudio:
 
         # check if extracting was successful
         if retcode == 0:
+            self.out[MsgTypes.finished].add(filepath)
             # file is ready for further processing by next action in 'pipeline'
             self.finished_ready.append(procinfo.file_record)
         else:

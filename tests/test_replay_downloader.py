@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+# pylint: disable=missing-docstring
+# pylint: disable=invalid-name
+
 import unittest
 import os
 import time
+# pylint: disable=import-error
 from replay_downloader import (
     Fileinfo,
     Procinfo,
@@ -116,7 +120,7 @@ class TestDownloads(unittest.TestCase):
                                                     'Download', Ftypes.MP3)])
         os.chdir(os.path.dirname(__file__))
         open('foo.flv.part', 'w')
-        while (proc_info.proc.poll() is None):
+        while proc_info.proc.poll() is None:
             time.sleep(0.05)
 
         ret = downloads.finished_handler(proc_info)
@@ -198,13 +202,14 @@ class TestExtractAudio(unittest.TestCase):
         self.assertEqual(proc_info, Procinfo(proc_info.proc, file_record))
         os.chdir(os.path.dirname(__file__))
         open('20150816.mp3', 'w')
-        while (proc_info.proc.poll() is None):
+        while proc_info.proc.poll() is None:
             time.sleep(0.05)
 
         ret = extracting.finished_handler(proc_info)
         os.remove('20150816.mp3')
         self.assertEqual(ret, 0)
-        #self.assertEqual(extracting.out[MsgTypes.finished].msglist[0][0], '20150816.mp3')
+        print(extracting.out[MsgTypes.finished])
+        self.assertEqual(extracting.out[MsgTypes.finished].msglist[0][0], '20150816.mp3')
         self.assertEqual(extracting.finished_ready[0], file_record)
 
 
