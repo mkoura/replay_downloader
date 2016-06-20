@@ -26,6 +26,13 @@ from subprocess import Popen, PIPE
 from requests import session
 
 
+try:
+    FileNotFoundError
+except NameError:
+    # pylint: disable=redefined-builtin
+    FileNotFoundError = IOError
+
+
 # file path, type, class that created the record, audio format, video format
 Fileinfo = collections.namedtuple('Fileinfo', 'path type clname audio_f video_f')
 
@@ -584,7 +591,7 @@ class ExtractAudio:
         else:
             # run the command
             proc = Popen([self.conf.COMMANDS.ffmpeg, '-i',
-                          local_file_name, '-vn', '-acodec', 'copy', res_file + _PART_EXT],
+                          local_file_name, '-vn', '-acodec', 'copy', res_file],
                          stdout=PIPE, stderr=PIPE)
             # add the file name to 'active' message queue
             self.out[MsgTypes.active].add(res_file)
@@ -611,20 +618,12 @@ class ExtractAudio:
 
         # check if extracting was successful
         if retcode == 0:
+            # file is ready for further processing by next action in 'pipeline'
+            self.finished_ready.append(procinfo.file_record)
+        else:
             try:
-                # file.part should exist, rename it to strip the '.part'
-                os.rename(filepath + _PART_EXT, filepath)
-                logit('[rename] {0}.{1} to {0}'.format(filepath, _PART_EXT))
-                self.out[MsgTypes.finished].add(filepath)
-                # file is ready for further processing by next action in 'pipeline'
-                self.finished_ready.append(procinfo.file_record)
-            except FileNotFoundError as emsg:
-                logit('[rename] failed: {}'.format(emsg), logging.error)
-                retcode = 1
-        if retcode != 0:
-            try:
-                os.remove(filepath + _PART_EXT)
-                logit('[delete] {}'.format(filepath + _PART_EXT), logging.error)
+                os.remove(filepath)
+                logit('[delete] {}'.format(filepath), logging.error)
             except FileNotFoundError as emsg:
                 self.out[MsgTypes.errors].add(str(emsg))
             self.out[MsgTypes.failed].add(filepath)
