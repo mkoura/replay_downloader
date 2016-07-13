@@ -985,14 +985,12 @@ if __name__ == '__main__':
         work.add(cleanup)
 
     with CleanExit(work.pipeline):
-        done = False
-
         # loop until there's no work left to do
+        done = False
         while not done:
             done = True
             for s in work.pipeline:
-                t = s()
-                if not t:
+                if not s():
                     done = False
 
             # print messages produced during this iterration
