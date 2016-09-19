@@ -115,9 +115,9 @@ class Config:
         """
         # default values
         self.cfg = configparser.ConfigParser()
-        self.cfg['DEFAULT'] = {'concurrency': '3',
-                               'destination_dir': '',
-                               'work_dir': ''}
+        self.cfg['RUN'] = {'concurrency': '3',
+                           'destination_dir': '',
+                           'work_dir': ''}
         self.cfg['AUTH'] = {'login': '', 'password': ''}
         self.cfg['COMMANDS'] = {'rtmpdump': 'rtmpdump', 'ffmpeg': 'ffmpeg'}
         self.cfg['RTMP'] = {'replay_url': 'http://webcast.dzogchen.net/index.php?id=replay',
@@ -136,27 +136,14 @@ class Config:
 
         # create configuration structure with all config values so that it's
         # independent of specific source of configuration (e.g. ini file)
-        self.DEFAULT = self.CoptsMixin()
-        self.DEFAULT.concurrency = self.cfg.getint('DEFAULT', 'concurrency')
-        self.DEFAULT.destination_dir = self.cfg['DEFAULT']['destination_dir']
-        self.DEFAULT.work_dir = self.cfg['DEFAULT']['work_dir']
-        self.AUTH = self.CoptsMixin()
-        self.AUTH.login = self.cfg['AUTH']['login']
-        self.AUTH.password = self.cfg['AUTH']['password']
-        self.COMMANDS = self.CoptsMixin()
-        self.COMMANDS.rtmpdump = self.cfg['COMMANDS']['rtmpdump']
-        self.COMMANDS.ffmpeg = self.cfg['COMMANDS']['ffmpeg']
-        self.RTMP = self.CoptsMixin()
-        self.RTMP.replay_url = self.cfg['RTMP']['replay_url']
-        self.RTMP.login_url = self.cfg['RTMP']['login_url']
-        self.RTMP.list_regex = self.cfg['RTMP']['list_regex']
-        self.RTMP.replay_rtmp = self.cfg['RTMP']['replay_rtmp']
-        self.RTMP.player_url = self.cfg['RTMP']['player_url']
-        self.RTMP.referer = self.cfg['RTMP']['referer']
-        self.HTTP = self.CoptsMixin()
-        self.HTTP.replay_url = self.cfg['HTTP']['replay_url']
-        self.HTTP.login_url = self.cfg['HTTP']['login_url']
-        self.HTTP.list_regex = self.cfg['HTTP']['list_regex']
+        # Example: self.RUN.concurrency
+        for section in self.cfg.sections():
+            setattr(self, section, self.CoptsMixin())
+            for key in self.cfg[section]:
+                setattr(self.__dict__[section], key, self.cfg[section][key])
+
+        # make sure that concurrency is int
+        self.RUN.concurrency = self.cfg.getint('RUN', 'concurrency')
 
 
 class ProcScheduler:
@@ -940,15 +927,15 @@ if __name__ == '__main__':
 
     # number of concurrent processes
     avail_slots = args.concurrent if args.concurrent > 0 \
-        else cfg.DEFAULT.concurrency
+        else cfg.RUN.concurrency
 
     # directory where final outcome will be saved
     dest_dir = args.destination if args.destination \
-        else cfg.DEFAULT.destination_dir
+        else cfg.RUN.destination_dir
 
     # directory for intermediate files
     workdir = args.work_dir if args.work_dir \
-        else cfg.DEFAULT.work_dir
+        else cfg.RUN.work_dir
 
     #
     # Create the work pipeline. When one step of the pipeline is finished
