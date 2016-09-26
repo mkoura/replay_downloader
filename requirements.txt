@@ -1,4 +1,2 @@
-pylint
-flake8
 requests
 nose
