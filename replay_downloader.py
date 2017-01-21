@@ -825,9 +825,10 @@ def is_tool(name) -> bool:
     return True
 
 
-if __name__ == '__main__':
-    retval = ExitCodes.SUCCESS
-
+def cmd_arguments():
+    """
+    Command line options.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config-file', metavar='FILE',
                         help='configuration file')
@@ -858,11 +859,21 @@ if __name__ == '__main__':
     parser.add_argument('--cleanup',
                         help='delete intermediate files',
                         action='store_true')
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    """
+    Run this when launched from command line.
+    """
+    retval = ExitCodes.SUCCESS
+
+    cmd_parser = cmd_arguments()
+    args = cmd_parser.parse_args()
 
     # no option was passed to the program
     if len(sys.argv) <= 1:
-        parser.print_help()
+        cmd_parser.print_help()
         sys.exit(ExitCodes.CONFIG)
 
     # config file specified on command line
@@ -874,10 +885,10 @@ if __name__ == '__main__':
                   os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'))
 
     config_file = ''
-    for cf in cflist:
+    for cfile in cflist:
         try:
-            with open(cf):
-                config_file = cf
+            with open(cfile):
+                config_file = cfile
                 break
         except EnvironmentError:
             pass
@@ -899,7 +910,7 @@ if __name__ == '__main__':
         get_replay_list(Rtypes.HTTP, cfg, args.get_avail_mobile, args.append)
         sys.exit(retval)
     elif args.append:
-        parser.print_help()
+        cmd_parser.print_help()
         print('\n-a (--append) allowed only in combination with ' +
               '-l (--get-avail) and -k (--get-avail-mobile)', file=sys.stderr)
         sys.exit(ExitCodes.CONFIG)
@@ -976,8 +987,8 @@ if __name__ == '__main__':
         done = False
         while not done:
             done = True
-            for s in work.pipeline:
-                if not s():
+            for task in work.pipeline:
+                if not task():
                     done = False
 
             # print messages produced during this iterration
@@ -989,14 +1000,18 @@ if __name__ == '__main__':
 
         # determine return value
         if retval == 0:
-            for m in messages.get_msglists_with_key(MsgTypes.failed):
-                if len(m) > 0:
+            for msglist in messages.get_msglists_with_key(MsgTypes.failed):
+                if len(msglist) > 0:
                     retval = ExitCodes.FAIL
                     break
         if retval == 0:
-            for m in messages.get_msglists_with_key(MsgTypes.skipped):
-                if len(m) > 0:
+            for msglist in messages.get_msglists_with_key(MsgTypes.skipped):
+                if len(msglist) > 0:
                     retval = ExitCodes.INCOMPLETE
                     break
 
     sys.exit(retval)
+
+
+if __name__ == '__main__':
+    main()
