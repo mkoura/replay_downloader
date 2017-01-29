@@ -804,11 +804,8 @@ def get_list_from_file(list_file: str) -> list:
     """
     Return list of lines in file.
     """
-    try:
-        with open(list_file) as ifl:
-            return ifl.read().splitlines()
-    except EnvironmentError as emsg:
-        print(str(emsg), file=sys.stderr)
+    with open(list_file) as ifl:
+        return ifl.read().splitlines()
 
 
 def is_tool(name) -> bool:
@@ -823,6 +820,59 @@ def is_tool(name) -> bool:
             "Cannot {} the '{}' command".format(
                 'find' if emsg.errno == os.errno.ENOENT else 'run', name)) from emsg
     return True
+
+
+def get_config_file(cmdarg):
+    """
+    Find configuration file.
+    """
+    # config file specified on command line
+    if cmdarg:
+        cflist = (cmdarg)
+    else:
+        # otherwise find config file in default locations
+        cflist = ('replay_downloader.ini',
+                  os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'))
+
+    config_file = ''
+    for cfile in cflist:
+        try:
+            with open(cfile):
+                config_file = cfile
+                break
+        except EnvironmentError:
+            pass
+
+    if config_file == '':
+        if cmdarg:
+            raise EnvironmentError("cannot open config file '{}'".format(cmdarg))
+        else:
+            raise EnvironmentError('no config file found')
+
+    return Config(config_file)
+
+
+def do_the_work(work, msg_handler):
+    """
+    The main thing. Loop untill all work is done.
+    """
+    with CleanExit(work.pipeline):
+        # loop until there's no work left to do
+        done = False
+        while not done:
+            done = True
+            for task in work.pipeline:
+                if not task():
+                    done = False
+
+            # print messages produced during this iterration
+            msg_handler()
+            time.sleep(0.5)
+
+
+#
+# Supporting functions for CLI
+#
 
 
 def cmd_arguments():
@@ -862,12 +912,75 @@ def cmd_arguments():
     return parser
 
 
+def setup_messages(args):
+    """
+    Instantiate "messages" and choose how its output will be presented.
+    """
+    messages = Msgs()
+    if args.brief:
+        msg_handler = messages.print_dots
+    elif args.quiet:
+        msg_handler = messages.print_dummy
+    else:
+        msg_handler = messages.print
+    return messages, msg_handler
+
+
+def get_avail_list(cmd_parser, cfg):
+    """
+    Get list of available recordings and exit.
+    """
+    args = cmd_parser.parse_args()
+    if args.get_avail:
+        get_replay_list(Rtypes.RTMP, cfg, args.get_avail, args.append)
+        sys.exit(ExitCodes.SUCCESS)
+    elif args.get_avail_mobile:
+        get_replay_list(Rtypes.HTTP, cfg, args.get_avail_mobile, args.append)
+        sys.exit(ExitCodes.SUCCESS)
+    elif args.append:
+        cmd_parser.print_help()
+        print('\n-a (--append) allowed only in combination with '
+              '-l (--get-avail) and -k (--get-avail-mobile)', file=sys.stderr)
+        sys.exit(ExitCodes.CONFIG)
+
+
+def get_list_to_download(args):
+    """
+    Return list of files to download.
+    """
+    # list of files to download was specified
+    if args.get_list:
+        try:
+            to_download_list = get_list_from_file(args.get_list)
+        except EnvironmentError as emsg:
+            print(str(emsg), file=sys.stderr)
+            sys.exit(ExitCodes.CONFIG)
+    # single file to download was specified
+    elif args.download_file:
+        to_download_list = [args.download_file]
+    return to_download_list
+
+
+def get_retval(messages):
+    """
+    Determine return value.
+    """
+    for msglist in messages.get_msglists_with_key(MsgTypes.failed):
+        if len(msglist) > 0:
+            retval = ExitCodes.FAIL
+            break
+    if retval == ExitCodes.SUCCESS:
+        for msglist in messages.get_msglists_with_key(MsgTypes.skipped):
+            if len(msglist) > 0:
+                retval = ExitCodes.INCOMPLETE
+                break
+    return retval
+
+
 def main():
     """
     Run this when launched from command line.
     """
-    retval = ExitCodes.SUCCESS
-
     cmd_parser = cmd_arguments()
     args = cmd_parser.parse_args()
 
@@ -876,77 +989,27 @@ def main():
         cmd_parser.print_help()
         sys.exit(ExitCodes.CONFIG)
 
-    # config file specified on command line
-    if args.config_file:
-        cflist = (args.config_file)
-    else:
-        # otherwise find config file in default locations
-        cflist = ('replay_downloader.ini',
-                  os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'))
-
-    config_file = ''
-    for cfile in cflist:
-        try:
-            with open(cfile):
-                config_file = cfile
-                break
-        except EnvironmentError:
-            pass
-
-    if config_file == '':
-        if args.config_file:
-            print("Error: cannot open config file '{}'".format(args.config_file),
-                  file=sys.stderr)
-        else:
-            print('Error: no config file found.', file=sys.stderr)
+    try:
+        cfg = get_config_file(args.config_file)
+    except EnvironmentError as cfge:
+        print('Error: {}'.format(cfge), file=sys.stderr)
         sys.exit(ExitCodes.CONFIG)
 
-    cfg = Config(config_file)
-
-    if args.get_avail:
-        get_replay_list(Rtypes.RTMP, cfg, args.get_avail, args.append)
-        sys.exit(retval)
-    elif args.get_avail_mobile:
-        get_replay_list(Rtypes.HTTP, cfg, args.get_avail_mobile, args.append)
-        sys.exit(retval)
-    elif args.append:
-        cmd_parser.print_help()
-        print('\n-a (--append) allowed only in combination with ' +
-              '-l (--get-avail) and -k (--get-avail-mobile)', file=sys.stderr)
-        sys.exit(ExitCodes.CONFIG)
-
-    # instantiate "messages" and choose how its output will be presented
-    messages = Msgs()
-    if args.brief:
-        msg_handler = messages.print_dots
-    elif args.quiet:
-        msg_handler = messages.print_dummy
-    else:
-        msg_handler = messages.print
+    get_avail_list(cmd_parser, cfg)
+    log_init(args.logfile)
+    messages, msg_handler = setup_messages(args)
 
     # instantiate work pipeline
     work = Work()
 
-    log_init(args.logfile)
-
-    # list of files to download was specified
-    if args.get_list:
-        to_download_list = get_list_from_file(args.get_list)
-    # single file to download was specified
-    elif args.download_file:
-        to_download_list = [args.download_file]
-
     # number of concurrent processes
-    avail_slots = args.concurrent if args.concurrent > 0 \
-        else cfg.RUN.concurrency
+    avail_slots = args.concurrent if args.concurrent > 0 else cfg.RUN.concurrency
 
     # directory where final outcome will be saved
-    dest_dir = args.destination if args.destination \
-        else cfg.RUN.destination_dir
+    dest_dir = args.destination if args.destination else cfg.RUN.destination_dir
 
     # directory for intermediate files
-    workdir = args.work_dir if args.work_dir \
-        else cfg.RUN.work_dir
+    workdir = args.work_dir if args.work_dir else cfg.RUN.work_dir
 
     #
     # Create the work pipeline. When one step of the pipeline is finished
@@ -955,8 +1018,8 @@ def main():
     # Work is finished when all steps in the pipeline are finished.
     #
 
-    # get list of files to download
-    to_download = Download.parse_todownload_list(to_download_list)
+    # get processed list of files to download
+    to_download = Download.parse_todownload_list(get_list_to_download(args))
 
     try:
         downloads = Download(cfg, to_download)
@@ -967,50 +1030,26 @@ def main():
 
     # download setup
     downloads.destination = workdir
-    downloads_scheduler = ProcScheduler(downloads)
-    downloads_scheduler.avail_slots = avail_slots
-    work.add(downloads_scheduler)
+    scheduler = ProcScheduler(downloads)
+    scheduler.avail_slots = avail_slots
+    work.add(scheduler)
 
     # extract audio setup
     extracting.destination = dest_dir
-    extracting_scheduler = ProcScheduler(extracting)
-    extracting_scheduler.avail_slots = avail_slots
-    work.add(extracting_scheduler)
+    scheduler = ProcScheduler(extracting)
+    scheduler.avail_slots = avail_slots
+    work.add(scheduler)
 
     if args.cleanup:
         # cleanup setup
-        cleanup = Cleanup(extracting.finished_ready)
-        work.add(cleanup)
+        work.add(Cleanup(extracting.finished_ready))
 
-    with CleanExit(work.pipeline):
-        # loop until there's no work left to do
-        done = False
-        while not done:
-            done = True
-            for task in work.pipeline:
-                if not task():
-                    done = False
+    do_the_work(work, msg_handler)
 
-            # print messages produced during this iterration
-            msg_handler()
-            time.sleep(0.5)
+    if not args.quiet:
+        messages.print_summary()
 
-        if not args.quiet:
-            messages.print_summary()
-
-        # determine return value
-        if retval == 0:
-            for msglist in messages.get_msglists_with_key(MsgTypes.failed):
-                if len(msglist) > 0:
-                    retval = ExitCodes.FAIL
-                    break
-        if retval == 0:
-            for msglist in messages.get_msglists_with_key(MsgTypes.skipped):
-                if len(msglist) > 0:
-                    retval = ExitCodes.INCOMPLETE
-                    break
-
-    sys.exit(retval)
+    sys.exit(get_retval(messages))
 
 
 if __name__ == '__main__':
