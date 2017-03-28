@@ -965,6 +965,7 @@ def get_retval(messages):
     """
     Determine return value.
     """
+    retval = ExitCodes.SUCCESS
     for msglist in messages.get_msglists_with_key(MsgTypes.failed):
         if len(msglist) > 0:
             retval = ExitCodes.FAIL
