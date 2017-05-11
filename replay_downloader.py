@@ -219,7 +219,7 @@ class MsgList:
     """
     Queue of messages with timestamp.
     """
-    def __init__(self, text=''):
+    def __init__(self, text: str=''):
         self.msglist = []
         self.tstamp = 0  # last time the messages were displayed
         self.text = text
@@ -355,7 +355,7 @@ class Download:
     Download specified files. Schedulable object for 'ProcScheduler'.
     """
 
-    def __init__(self, conf: Config, to_do: list, destination=''):
+    def __init__(self, conf: Config, to_do: list, destination: str=''):
         # necassary tools
         self.required_tools = [conf.COMMANDS.rtmpdump, conf.COMMANDS.ffmpeg]
 
@@ -520,7 +520,7 @@ class ExtractAudio:
     Extract audio from specified files. Schedulable object for 'ProcScheduler'.
     """
 
-    def __init__(self, conf: Config, to_do: list, destination=''):
+    def __init__(self, conf: Config, to_do: list, destination: str=''):
         # necassary tools
         self.required_tools = [conf.COMMANDS.ffmpeg]
 
