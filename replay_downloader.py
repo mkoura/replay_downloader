@@ -46,12 +46,6 @@ Fileinfo.__new__.__defaults__ = ('', '', '')
 Procinfo = collections.namedtuple('Procinfo', 'proc file_record')
 
 
-class EnvironmentSanityError(EnvironmentError):
-    """
-    Raise this when environment does not meet expectations.
-    """
-
-
 class ExitCodes:
     """
     Exit codes used in main program.
@@ -151,12 +145,12 @@ class ProcScheduler:
     Run processes in parallel via schedulable object.
     Callable object for work pipeline.
     """
-    def __init__(self, schedulable_obj):
+    def __init__(self, schedulable_obj, avail_slots=3):
         """
         The schedulable_obj has 'spawn' and 'finished_handler' methods
         and 'to_do' stack.
         """
-        self.avail_slots = 3
+        self.avail_slots = avail_slots
         self.running_procs = []
         self.obj = schedulable_obj
         self.to_do = self.obj.to_do
@@ -210,6 +204,9 @@ class Work():
 
     def __str__(self):
         return str(self.pipeline)
+
+    def __iter__(self):
+        return iter(self.pipeline)
 
     def add(self, action):
         """
@@ -358,10 +355,9 @@ class Download:
     Download specified files. Schedulable object for 'ProcScheduler'.
     """
 
-    def __init__(self, conf: Config, to_do: list):
-        # check if necassary tools are available
-        is_tool(conf.COMMANDS.rtmpdump)
-        is_tool(conf.COMMANDS.ffmpeg)
+    def __init__(self, conf: Config, to_do: list, destination=''):
+        # necassary tools
+        self.required_tools = [conf.COMMANDS.rtmpdump, conf.COMMANDS.ffmpeg]
 
         self.conf = conf
         self.out = {MsgTypes.active: MsgList('Downloading'),
@@ -371,6 +367,7 @@ class Download:
                     MsgTypes.errors: MsgList()}
         out_add(self.out)
         self._destination = ''
+        self.destination = destination
         self.finished_ready = []
         self.to_do = to_do
 
@@ -402,7 +399,7 @@ class Download:
         """
         Set directory where the downloaded files will be saved.
         """
-        if destdir == '':
+        if not destdir:
             return
 
         destdir = os.path.expanduser(destdir)
@@ -448,7 +445,7 @@ class Download:
                 'Error: download failed, unsupported download type for {}'
                 .format(remote_file_name))
             self.out[MsgTypes.failed].add(remote_file_name)
-            return None
+            return
         cur_fileinfo = Fileinfo(res_file, res_type, clname=type(self).__name__,
                                 audio_f=audio_format)
 
@@ -458,7 +455,7 @@ class Download:
             self.out[MsgTypes.skipped].add(res_file)
             file_record.add(cur_fileinfo)
             self.finished_ready.append(file_record)
-            return None
+            return
         else:
             # run the command
             proc = Popen(command, stdout=PIPE, stderr=PIPE)
@@ -523,9 +520,9 @@ class ExtractAudio:
     Extract audio from specified files. Schedulable object for 'ProcScheduler'.
     """
 
-    def __init__(self, conf: Config, to_do: list):
-        # check if 'ffmpeg' is available
-        is_tool(conf.COMMANDS.ffmpeg)
+    def __init__(self, conf: Config, to_do: list, destination=''):
+        # necassary tools
+        self.required_tools = [conf.COMMANDS.ffmpeg]
 
         self.conf = conf
         self.out = {MsgTypes.active: MsgList('Extracting audio'),
@@ -535,6 +532,7 @@ class ExtractAudio:
                     MsgTypes.errors: MsgList()}
         out_add(self.out)
         self._destination = ''
+        self.destination = destination
         self.finished_ready = []
         self.to_do = to_do
 
@@ -547,7 +545,7 @@ class ExtractAudio:
         """
         Set directory where the extracted audio files will be saved.
         """
-        if destdir == '':
+        if not destdir:
             return
 
         destdir = os.path.expanduser(destdir)
@@ -566,18 +564,18 @@ class ExtractAudio:
         local_file_name = file_record[-1].path
         file_type = file_record[-1].type
         audio_format = file_record[-1].audio_f
-        if audio_format == '':
+        if not audio_format:
             self.out[MsgTypes.errors].add(
                 'Error: failed to extract, audio format info not passed for {}'
                 .format(local_file_name))
             self.out[MsgTypes.failed].add(local_file_name)
-            return None
+            return
 
         if file_type == audio_format:
             # nothing to do, passing for further processing
             # by next action in 'pipeline'
             self.finished_ready.append(file_record)
-            return None
+            return
 
         fname = '{}.{}'.format(remove_ext(local_file_name),
                                file_ext_d[audio_format.name])
@@ -590,7 +588,7 @@ class ExtractAudio:
             self.out[MsgTypes.skipped].add(res_file)
             file_record.add(cur_fileinfo)
             self.finished_ready.append(file_record)
-            return None
+            return
         else:
             # run the command
             proc = Popen([self.conf.COMMANDS.ffmpeg, '-i',
@@ -767,7 +765,7 @@ def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
     Get list of remote files (streams) available for download.
     """
     def _get_session(desc):
-        if (conf.AUTH.login == '') or (conf.AUTH.password == ''):
+        if not (conf.AUTH.login and conf.AUTH.password):
             raise ValueError('Login or password are not configured')
 
         payload = {
@@ -808,18 +806,29 @@ def get_list_from_file(list_file: str) -> list:
         return ifl.read().splitlines()
 
 
-def is_tool(name) -> bool:
+def check_required_tools(work):
     """
-    Check if it's possible to run the tool.
+    Check if it's possible to run all required tools.
     """
-    try:
-        with open(os.devnull, 'w') as devnull:
-            Popen([name], stdout=devnull, stderr=devnull)
-    except OSError as emsg:
-        raise EnvironmentSanityError(
-            "Cannot {} the '{}' command".format(
-                'find' if emsg.errno == os.errno.ENOENT else 'run', name)) from emsg
-    return True
+    all_required_tools = set()
+    for task in work:
+        if hasattr(task, 'required_tools'):
+            all_required_tools.update(task.required_tools)
+        elif hasattr(task, 'obj') and hasattr(task.obj, 'required_tools'):
+            all_required_tools.update(task.obj.required_tools)
+
+    all_available = True
+    for tool in all_required_tools:
+        try:
+            with open(os.devnull, 'w') as devnull:
+                Popen([tool], stdout=devnull, stderr=devnull)
+        except OSError as emsg:
+            print("Cannot {} the '{}' command".format(
+                'find' if emsg.errno == os.errno.ENOENT else 'run', tool), file=sys.stderr)
+            all_available = False
+
+    if not all_available:
+        sys.exit(ExitCodes.CONFIG)
 
 
 def get_config_file(cmdarg):
@@ -828,11 +837,11 @@ def get_config_file(cmdarg):
     """
     # config file specified on command line
     if cmdarg:
-        cflist = (cmdarg)
+        cflist = (cmdarg, )
     else:
         # otherwise find config file in default locations
-        cflist = ('replay_downloader.ini',
-                  os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'))
+        cflist = (os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'),
+                  'replay_downloader.ini')
 
     config_file = ''
     for cfile in cflist:
@@ -843,11 +852,11 @@ def get_config_file(cmdarg):
         except EnvironmentError:
             pass
 
-    if config_file == '':
+    if not config_file:
         if cmdarg:
             raise EnvironmentError("cannot open config file '{}'".format(cmdarg))
         else:
-            raise EnvironmentError('no config file found')
+            raise EnvironmentError("no config file found")
 
     return Config(config_file)
 
@@ -856,12 +865,12 @@ def do_the_work(work, msg_handler):
     """
     The main thing. Loop untill all work is done.
     """
-    with CleanExit(work.pipeline):
+    with CleanExit(work):
         # loop until there's no work left to do
         done = False
         while not done:
             done = True
-            for task in work.pipeline:
+            for task in work:
                 if not task():
                     done = False
 
@@ -1022,29 +1031,21 @@ def main():
     # get processed list of files to download
     to_download = Download.parse_todownload_list(get_list_to_download(args))
 
-    try:
-        downloads = Download(cfg, to_download)
-        extracting = ExtractAudio(cfg, downloads.finished_ready)
-    except EnvironmentSanityError as enve:
-        print('Error: {}'.format(enve), file=sys.stderr)
-        sys.exit(ExitCodes.CONFIG)
-
     # download setup
-    downloads.destination = workdir
-    scheduler = ProcScheduler(downloads)
-    scheduler.avail_slots = avail_slots
+    downloads = Download(cfg, to_download, destination=workdir)
+    scheduler = ProcScheduler(downloads, avail_slots)
     work.add(scheduler)
 
     # extract audio setup
-    extracting.destination = dest_dir
-    scheduler = ProcScheduler(extracting)
-    scheduler.avail_slots = avail_slots
+    extracting = ExtractAudio(cfg, downloads.finished_ready, destination=dest_dir)
+    scheduler = ProcScheduler(extracting, avail_slots)
     work.add(scheduler)
 
     if args.cleanup:
         # cleanup setup
         work.add(Cleanup(extracting.finished_ready))
 
+    check_required_tools(work)
     do_the_work(work, msg_handler)
 
     if not args.quiet:
