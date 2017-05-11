@@ -7,7 +7,6 @@
 import unittest
 import os
 import time
-# pylint: disable=import-error
 from replay_downloader import (
     Fileinfo,
     Procinfo,
@@ -47,10 +46,8 @@ class TestDownloads(unittest.TestCase):
         conf = Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
         conf.COMMANDS.ffmpeg = '/bin/true'
-        downloads = Download(conf, [])
         destdir = 'destdir'
-
-        downloads.destination = destdir
+        downloads = Download(conf, [], destination=destdir)
         self.assertEqual(downloads.destination, destdir)
         self.assertTrue(os.path.isdir(destdir))
         try:
@@ -135,10 +132,8 @@ class TestExtractAudio(unittest.TestCase):
         conf = Config()
         conf.COMMANDS.rtmpdump = '/bin/true'
         conf.COMMANDS.ffmpeg = '/bin/true'
-        extracting = ExtractAudio(conf, [])
         destdir = 'destdir'
-
-        extracting.destination = destdir
+        extracting = ExtractAudio(conf, [], destination=destdir)
         self.assertEqual(extracting.destination, destdir)
         self.assertTrue(os.path.isdir(destdir))
         try:
