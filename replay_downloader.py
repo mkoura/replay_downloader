@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 
 # Licence: MPL 2.0
 # Author: Martin Kourim <kourim@protonmail.com>
-
-# pylint: disable=too-many-lines
-# pylint doesn't handle enums correctly
-# pylint: disable=redefined-variable-type
 
 """
 Module for downloading files from http://replay.dzogchen.net.
@@ -14,19 +10,20 @@ It can download from both standard replay and mobile replay.
 """
 
 
-import os
-import re
-import sys
-import signal
-import time
-import traceback
-import logging
-import collections
-import configparser
 import argparse
-from enum import Enum
-from subprocess import Popen, PIPE
-from requests import session
+import sys
+
+from replay_downloader import (
+    cleanup,
+    config,
+    download,
+    extract_audio,
+    log,
+    mappings,
+    msgs,
+    perform,
+    utils
+)
 
 # for compatibility with older python
 try:
@@ -36,858 +33,8 @@ except NameError:
     FileNotFoundError = OSError
 
 
-# file path, type, class that created the record, audio format, video format
-Fileinfo = collections.namedtuple('Fileinfo', 'path type clname audio_f video_f')
-
-# clname, audio_f and video_f are optional
-Fileinfo.__new__.__defaults__ = ('', '', '')
-
-# proc is an object returned by Popen, file_record is an instance of FileRecord
-Procinfo = collections.namedtuple('Procinfo', 'proc file_record')
-
-
-class ExitCodes:
-    """
-    Exit codes used in main program.
-    """
-    SUCCESS = 0
-    FAIL = 1
-    INCOMPLETE = 2
-    INTERRUPTED = 3
-    CONFIG = 4
-
-
-class Rtypes(Enum):
-    """
-    Protocols used for downloading the remote file.
-    """
-    RTMP = 0
-    HTTP = 1
-
-
-class Ftypes(Enum):
-    """
-    File types that we expect and can work with.
-    """
-    FLV = 0
-    MP3 = 1
-    AAC = 2
-    MP4 = 3
-
-
-# mapping of known file types to file extensions
-file_ext_d = {
-    Ftypes.FLV.name: 'flv',
-    Ftypes.MP3.name: 'mp3',
-    Ftypes.AAC.name: 'aac',
-    Ftypes.MP4.name: 'mp4',
-}
-
-
-class MsgTypes(Enum):
-    """
-    Types of message queues.
-    """
-    active = 0
-    finished = 1
-    skipped = 2
-    failed = 3
-    errors = 4
-
-
-class Config:
-    """
-    Configuration options.
-    """
-    class CoptsMixin:
-        pass
-
-    def __init__(self, cfg_path: str=''):
-        """
-        Args:
-            cfg_path (str): Path to config file.
-        """
-        # default values
-        self.cfg = configparser.ConfigParser()
-        self.cfg['RUN'] = {'concurrency': '3',
-                           'destination_dir': '',
-                           'work_dir': ''}
-        self.cfg['AUTH'] = {'login': '', 'password': ''}
-        self.cfg['COMMANDS'] = {'rtmpdump': 'rtmpdump', 'ffmpeg': 'ffmpeg'}
-        self.cfg['RTMP'] = {'replay_url': 'http://webcast.dzogchen.net/index.php?id=replay',
-                            'login_url': 'http://webcast.dzogchen.net/login-exec.php',
-                            'list_regex': r'so.addVariable\(\'file\',\'/([^\']*.mp3)\'\);',
-                            'replay_rtmp': 'rtmp://78.129.190.44/replay',
-                            'player_url': 'http://webcast.dzogchen.net/player.swf',
-                            'referer': 'http://webcast.dzogchen.net/index.php?id=replay'}
-        self.cfg['HTTP'] = {'replay_url': 'http://webcast.dzogchen.net/index.php?id=mobilereplay',
-                            'login_url': 'http://webcast.dzogchen.net/login-exec.php',
-                            'list_regex': r'<a href=\"(http:[^\"]*playlist.m3u8)\"'}
-
-        # read config file and override default values
-        if os.path.isfile(cfg_path):
-            self.cfg.read(cfg_path)
-
-        # create configuration structure with all config values so that it's
-        # independent of specific source of configuration (e.g. ini file)
-        # Example: self.RUN.concurrency
-        for section in self.cfg.sections():
-            setattr(self, section, self.CoptsMixin())
-            for key in self.cfg[section]:
-                setattr(self.__dict__[section], key, self.cfg[section][key])
-
-        # make sure that concurrency is int
-        self.RUN.concurrency = self.cfg.getint('RUN', 'concurrency')
-
-
-class ProcScheduler:
-    """
-    Run processes in parallel via schedulable object.
-    Callable object for work pipeline.
-    """
-    def __init__(self, schedulable_obj, avail_slots=3):
-        """
-        The schedulable_obj has 'spawn' and 'finished_handler' methods
-        and 'to_do' stack.
-        """
-        self.avail_slots = avail_slots
-        self.running_procs = []
-        self.obj = schedulable_obj
-        self.to_do = self.obj.to_do
-        self.spawn_callback = self.obj.spawn
-        self.finish_callback = self.obj.finished_handler
-
-    def _spawn(self) -> bool:
-        """
-        Run the 'spawn' method of the schedulable_obj for every item
-        in the 'to_do' stack. Run up-to 'avail_slots' processes in parallel.
-        """
-        len_todo = len(self.to_do)
-        while (self.avail_slots > 0) and (len_todo > 0):
-            procinfo = self.spawn_callback(self.to_do.pop())
-            len_todo -= 1
-            if procinfo is not None:
-                self.running_procs.append(procinfo)
-                self.avail_slots -= 1
-
-        # return True if there is nothing left to do
-        return len_todo == 0
-
-    def _check_running_procs(self) -> bool:
-        """
-        Check all running processes and call the 'finished_handler'
-        method of the schedulable_obj on those that are finished.
-        """
-        for procinfo in self.running_procs:
-            retcode = procinfo.proc.poll()
-            if retcode is not None:
-                self.running_procs.remove(procinfo)
-                self.avail_slots += 1
-                self.finish_callback(procinfo)
-
-        # return True if all running processes are finished
-        return len(self.running_procs) == 0
-
-    def __call__(self) -> bool:
-        """
-        Return True if there's nothing to do at the moment.
-        """
-        return all((self._spawn(), self._check_running_procs()))
-
-
-class Work():
-    """
-    Maintain list of scheduled actions.
-    """
-    def __init__(self):
-        self.pipeline = []
-
-    def __str__(self):
-        return str(self.pipeline)
-
-    def __iter__(self):
-        return iter(self.pipeline)
-
-    def add(self, action):
-        """
-        Add work (callable object) to pipeline.
-        """
-        self.pipeline.append(action)
-
-
-class MsgList:
-    """
-    Queue of messages with timestamp.
-    """
-    def __init__(self, text: str=''):
-        self.msglist = []
-        self.tstamp = 0  # last time the messages were displayed
-        self.text = text
-
-    def __str__(self):
-        return '{}, {}, {}'.format(self.msglist, self.text, self.tstamp)
-
-    def __len__(self):
-        return len(self.msglist)
-
-    def __getitem__(self, position):
-        return self.msglist[position]
-
-    def update_tstamp(self):
-        self.tstamp = time.time()
-
-    def add(self, message: str):
-        self.msglist.append((message, time.time()))
-
-    def get_new(self):
-        """
-        New messages iterator.
-        """
-        # get messages that were not displayed (requested) yet
-        for msg in self.msglist:
-            if msg[1] >= self.tstamp:
-                yield msg[0]
-        self.update_tstamp()
-
-
-class Msgs:
-    """
-    Print available messages.
-    """
-    # list of symbols used for displaying progress
-    syms = ['.', '+', '*', '#']
-    slen = len(syms)
-
-    @staticmethod
-    def print_dummy():
-        pass
-
-    @staticmethod
-    def get_msglists_with_key(key: str):
-        """
-        Generator of message queues identified by 'key'.
-        """
-        return (msglist for msglist in _OUT[key]) if key in _OUT else iter(())
-
-    def _print_new(self, key: str, out=sys.stdout):
-        for msglist in self.get_msglists_with_key(key):
-            for msg in msglist.get_new():
-                print('{} {}'.format(msglist.text, msg).strip(), file=out)
-
-    def print_errors(self):
-        """
-        Print new error messages.
-        """
-        self._print_new(MsgTypes.errors, sys.stderr)
-
-    def print(self):
-        """
-        Print new error messages and messages indicating progress.
-        """
-        self.print_errors()
-        self._print_new(MsgTypes.active)
-
-    def print_dots(self):
-        """
-        Display progress using symbols instead of text messages.
-        """
-        def _print(sym, msglist):
-            for _ in msglist.get_new():
-                print(sym, end='')
-                sys.stdout.flush()
-
-        for i in self.get_msglists_with_key(MsgTypes.failed):
-            _print('F', i)
-
-        for num, mem in enumerate(self.get_msglists_with_key(MsgTypes.active)):
-            _print(self.syms[num % self.slen], mem)
-
-        for i in self.get_msglists_with_key(MsgTypes.skipped):
-            _print('S', i)
-
-    def print_summary(self):
-        """
-        Print summary of the final outcome.
-        """
-        def _print(key):
-            for mem in self.get_msglists_with_key(key):
-                num = len(mem)
-                if num > 0:
-                    print('{} {} file(s):'.format(mem.text, num))
-                    for fil in mem:
-                        print('  {}'.format(fil[0]))
-
-        print('')
-
-        _print(MsgTypes.finished)
-        _print(MsgTypes.failed)
-        _print(MsgTypes.skipped)
-
-
-class FileRecord:
-    """
-    Record complete history of file transformations.
-    """
-    def __init__(self, file_info: Fileinfo):
-        self.rec = [file_info]
-
-    def __str__(self):
-        return str(self.rec)
-
-    def __len__(self):
-        return len(self.rec)
-
-    def __getitem__(self, position):
-        return self.rec[position]
-
-    def add(self, file_info: Fileinfo):
-        self.rec.append(file_info)
-
-    def delete(self):
-        try:
-            self.rec.pop()
-        except AttributeError:
-            pass
-
-
-class Download:
-    """
-    Download specified files. Schedulable object for 'ProcScheduler'.
-    """
-
-    def __init__(self, conf: Config, to_do: list, destination: str=''):
-        # necassary tools
-        self.required_tools = [conf.COMMANDS.rtmpdump, conf.COMMANDS.ffmpeg]
-
-        self.conf = conf
-        self.out = {MsgTypes.active: MsgList('Downloading'),
-                    MsgTypes.finished: MsgList('Downloaded'),
-                    MsgTypes.skipped: MsgList('Skipped download of'),
-                    MsgTypes.failed: MsgList('Failed to download'),
-                    MsgTypes.errors: MsgList()}
-        out_add(self.out)
-        self._destination = ''
-        self.destination = destination
-        self.finished_ready = []
-        self.to_do = to_do
-
-    @staticmethod
-    def parse_todownload_list(downloads_list: list) -> list:
-        """
-        Parse the list of files to download and store useful metadata.
-        """
-        retlist = []
-        for i in downloads_list:
-            line = i.strip()
-            if not line:
-                continue
-            elif line.startswith('#'):
-                continue
-            elif line.startswith('http://'):
-                retlist.append(FileRecord(Fileinfo(line, Rtypes.HTTP)))
-            else:
-                retlist.append(FileRecord(Fileinfo('rtmp://' + line, Rtypes.RTMP)))
-
-        return retlist
-
-    @property
-    def destination(self):
-        return self._destination
-
-    @destination.setter
-    def destination(self, destdir: str):
-        """
-        Set directory where the downloaded files will be saved.
-        """
-        if not destdir:
-            return
-
-        destdir = os.path.expanduser(destdir)
-        try:
-            os.makedirs(destdir)
-            self._destination = destdir
-        except OSError:
-            if not os.path.isdir(destdir):
-                raise
-
-    def spawn(self, file_record: FileRecord) -> Procinfo:
-        """
-        Run command for downloading the file in the background
-        and record corresponding metadata.
-        """
-        remote_file_name = file_record[-1].path
-        download_type = file_record[-1].type
-
-        if download_type is Rtypes.RTMP:
-            # strip 'rtmp://'
-            remote_file_name = remote_file_name[7:]
-            # add destination, strip extension, append '.flv'
-            res_file = os.path.join(self.destination,
-                                    remove_ext(remote_file_name) + '.flv')
-            res_type = Ftypes.FLV
-            audio_format = Ftypes.MP3
-            command = [self.conf.COMMANDS.rtmpdump, '--hashes', '--live',
-                       '--rtmp', self.conf.RTMP.replay_rtmp + '/' +
-                       remote_file_name, '--pageUrl',
-                       self.conf.RTMP.referer, '--swfUrl',
-                       self.conf.RTMP.replay_url, '--swfVfy',
-                       self.conf.RTMP.player_url, '--flv', res_file + _PART_EXT]
-        elif download_type is Rtypes.HTTP:
-            # extract file name from URI
-            fname = re.search(r'mp4:([^\/]*)\/', remote_file_name)
-            res_file = os.path.join(self.destination, fname.group(1))
-            res_type = Ftypes.MP4
-            audio_format = Ftypes.AAC
-            command = [self.conf.COMMANDS.ffmpeg, '-i',
-                       remote_file_name, '-c', 'copy', res_file + _PART_EXT]
-        else:
-            self.out[MsgTypes.errors].add(
-                'Error: download failed, unsupported download type for {}'
-                .format(remote_file_name))
-            self.out[MsgTypes.failed].add(remote_file_name)
-            return
-        cur_fileinfo = Fileinfo(res_file, res_type, clname=type(self).__name__,
-                                audio_f=audio_format)
-
-        if os.path.isfile(res_file):
-            self.out[MsgTypes.errors].add(
-                'WARNING: skipping download, file exists: {}'.format(res_file))
-            self.out[MsgTypes.skipped].add(res_file)
-            file_record.add(cur_fileinfo)
-            self.finished_ready.append(file_record)
-            return
-        else:
-            # run the command
-            proc = Popen(command, stdout=PIPE, stderr=PIPE)
-            # add the file name to 'active' message queue
-            self.out[MsgTypes.active].add(res_file)
-            # update file history
-            file_record.add(cur_fileinfo)
-            return Procinfo(proc, file_record)
-
-    def finished_handler(self, procinfo: Procinfo) -> int:
-        """
-        Actions performed when download is finished.
-        """
-        proc = procinfo.proc
-        filepath = procinfo.file_record[-1].path
-        filetype = procinfo.file_record[-1].type
-        retcode = proc.poll()
-
-        # get stdout and stderr of the command
-        (out, err) = proc.communicate()
-        if out:
-            logit('[download] stdout for {}:'.format(filepath))
-            logit(out.decode('utf-8'))
-        if err:
-            logit('[download] stderr for {}:'.format(filepath), logging.error)
-            logit(err.decode('utf-8'), logging.error)
-
-        # If rtmpdump finishes with following message:
-        # "Download may be incomplete (downloaded about 99.50%), try resuming"
-        # it means that download was ok even though the return value was non-zero
-        if (retcode == 2) and (filetype == Ftypes.FLV):
-            for each_line in err.decode('utf-8').splitlines():
-                match = re.search(r'\(downloaded about 99\.[0-9]+%\),', each_line)
-                if match:
-                    retcode = 0
-                    break
-
-        # check if download was successful
-        if retcode == 0:
-            try:
-                # file.part should exist, rename it to strip the '.part'
-                os.rename(filepath + _PART_EXT, filepath)
-                logit('[rename] {0}{1} to {0}'.format(filepath, _PART_EXT))
-                self.out[MsgTypes.finished].add(filepath)
-                # file is ready for further processing by next action in 'pipeline'
-                self.finished_ready.append(procinfo.file_record)
-            except FileNotFoundError as emsg:
-                logit('[rename] failed: {}'.format(emsg), logging.error)
-                retcode = 1
-        if retcode != 0:
-            self.out[MsgTypes.failed].add(filepath)
-            self.out[MsgTypes.errors].add(
-                'Error downloading {}: {}'.format(filepath, err.decode('utf-8')))
-            # remove last entry from file_record
-            procinfo.file_record.delete()
-
-        return retcode
-
-
-class ExtractAudio:
-    """
-    Extract audio from specified files. Schedulable object for 'ProcScheduler'.
-    """
-
-    def __init__(self, conf: Config, to_do: list, destination: str=''):
-        # necassary tools
-        self.required_tools = [conf.COMMANDS.ffmpeg]
-
-        self.conf = conf
-        self.out = {MsgTypes.active: MsgList('Extracting audio'),
-                    MsgTypes.finished: MsgList('Audio extracting resulted in'),
-                    MsgTypes.skipped: MsgList('Skipped extracting audio of'),
-                    MsgTypes.failed: MsgList('Failed to extract audio'),
-                    MsgTypes.errors: MsgList()}
-        out_add(self.out)
-        self._destination = ''
-        self.destination = destination
-        self.finished_ready = []
-        self.to_do = to_do
-
-    @property
-    def destination(self):
-        return self._destination
-
-    @destination.setter
-    def destination(self, destdir: str):
-        """
-        Set directory where the extracted audio files will be saved.
-        """
-        if not destdir:
-            return
-
-        destdir = os.path.expanduser(destdir)
-        try:
-            os.makedirs(destdir)
-        except OSError:
-            if not os.path.isdir(destdir):
-                raise
-        self._destination = destdir
-
-    def spawn(self, file_record: list) -> Procinfo:
-        """
-        Run command for extracting the audio in the background
-        and record corresponding metadata.
-        """
-        local_file_name = file_record[-1].path
-        file_type = file_record[-1].type
-        audio_format = file_record[-1].audio_f
-        if not audio_format:
-            self.out[MsgTypes.errors].add(
-                'Error: failed to extract, audio format info not passed for {}'
-                .format(local_file_name))
-            self.out[MsgTypes.failed].add(local_file_name)
-            return
-
-        if file_type == audio_format:
-            # nothing to do, passing for further processing
-            # by next action in 'pipeline'
-            self.finished_ready.append(file_record)
-            return
-
-        fname = '{}.{}'.format(remove_ext(local_file_name),
-                               file_ext_d[audio_format.name])
-        res_file = os.path.join(self._destination, fname)
-        cur_fileinfo = Fileinfo(res_file, audio_format, clname=type(self).__name__,
-                                audio_f=audio_format)
-        if os.path.isfile(res_file):
-            self.out[MsgTypes.errors].add(
-                'WARNING: skipping extracting, file exists: {}'.format(res_file))
-            self.out[MsgTypes.skipped].add(res_file)
-            file_record.add(cur_fileinfo)
-            self.finished_ready.append(file_record)
-            return
-        else:
-            # run the command
-            proc = Popen([self.conf.COMMANDS.ffmpeg, '-i',
-                          local_file_name, '-vn', '-acodec', 'copy', res_file],
-                         stdout=PIPE, stderr=PIPE)
-            # add the file name to 'active' message queue
-            self.out[MsgTypes.active].add(res_file)
-            # update file history
-            file_record.add(cur_fileinfo)
-            return Procinfo(proc, file_record)
-
-    def finished_handler(self, procinfo: Procinfo) -> int:
-        """
-        Actions performed when extracting is finished.
-        """
-        proc = procinfo.proc
-        filepath = procinfo.file_record[-1].path
-        retcode = proc.poll()
-
-        # get stdout and stderr of the command
-        (out, err) = proc.communicate()
-        if out:
-            logit('[extracting] stdout for {}:'.format(filepath))
-            logit(out.decode('utf-8'))
-        if err:
-            logit('[extracting] stderr for {}'.format(filepath), logging.error)
-            logit(err.decode('utf-8'), logging.error)
-
-        # check if extracting was successful
-        if retcode == 0:
-            self.out[MsgTypes.finished].add(filepath)
-            # file is ready for further processing by next action in 'pipeline'
-            self.finished_ready.append(procinfo.file_record)
-        else:
-            try:
-                os.remove(filepath)
-                logit('[delete] {}'.format(filepath), logging.error)
-            except FileNotFoundError as emsg:
-                self.out[MsgTypes.errors].add(str(emsg))
-            self.out[MsgTypes.failed].add(filepath)
-            self.out[MsgTypes.errors].add(
-                'Error extracting {}: {}'.format(filepath, err.decode('utf-8')))
-            # remove last entry from file_record
-            procinfo.file_record.delete()
-
-        return retcode
-
-
-class Cleanup:
-    """
-    Delete all intermediate files. Callable object for work pipeline.
-    """
-
-    def __init__(self, to_do: list):
-        self.out = {MsgTypes.finished: MsgList('Deleted')}
-        out_add(self.out)
-        self.finished_ready = []
-        self.to_do = to_do
-
-    def __call__(self) -> bool:
-        """
-        Go through every file record and delete all existing files
-        except the last one.
-        """
-        length = len(self.to_do)
-        for _ in range(length):
-            file_record = self.to_do.pop()
-            for rec in file_record[:-1]:
-                try:
-                    os.remove(rec.path)
-                    logit('[cleanup] {}'.format(rec.path))
-                    self.out[MsgTypes.finished].add(rec.path)
-                    os.remove(rec.path + _PART_EXT)
-                    logit('[cleanup] {}'.format(rec.path + _PART_EXT))
-                    self.out[MsgTypes.finished].add(rec.path + _PART_EXT)
-                except FileNotFoundError:
-                    pass
-            # pass for further processing
-            self.finished_ready.append(file_record)
-        return True
-
-
-class CleanExit:
-    """
-    Clean on exit.
-    """
-
-    def __init__(self, pipeline):
-        self.pipeline = pipeline
-
-    def __enter__(self):
-        signal.signal(signal.SIGTERM, lambda *args: sys.exit(ExitCodes.INTERRUPTED))
-
-    def __exit__(self, exc_type, value, trace):
-        try:
-            for task in self.pipeline:
-                # kill all processes running in the background
-                if not hasattr(task, 'running_procs'):
-                    continue
-                for proc_info in task.running_procs:
-                    proc_o = proc_info.proc
-                    if proc_o.poll() is None:
-                        proc_o.kill()
-        # pylint: disable=broad-except
-        except Exception:
-            traceback.print_exc()
-
-        if exc_type is KeyboardInterrupt:
-            sys.exit(ExitCodes.INTERRUPTED)
-
-        return exc_type is None
-
-
-# path to the log file
-LOGFILE = None
-
-# dictionary of message queues (active, skipped, etc.)
-_OUT = {}
-
-# extension of file that is not ready yet
-_PART_EXT = '.part'
-
-
-def out_add(out: dict):
-    """
-    Add message queue to dictionary.
-    """
-    for key in out:
-        # add message queue to dictionary;
-        # create the key if it doesn't exist yet
-        _OUT.setdefault(key, []).append(out[key])
-
-
-def remove_ext(filename: str):
-    """
-    Remove file extension if it really looks like file extension
-    (not just something after the dot).
-    """
-    fname, fext = os.path.splitext(filename)
-    return fname if len(fext) == 4 else fname + fext
-
-
-def log_init(logfile: str):
-    """
-    Initialize logging.
-    """
-    if not logfile:
-        return
-
-    try:
-        logging.basicConfig(filename=logfile, level=logging.DEBUG)
-        global LOGFILE
-        LOGFILE = logfile
-    except EnvironmentError as emsg:
-        print(str(emsg), file=sys.stderr)
-
-
-def logit(message: str, method=logging.info):
-    """
-    Log message.
-    """
-    if not LOGFILE:
-        return
-
-    try:
-        for each_line in message.splitlines():
-            method(each_line)
-    except EnvironmentError as emsg:
-        print(str(emsg), file=sys.stderr)
-
-
-def get_replay_list(replay_type: int, conf: Config, outfile: str, append=False):
-    """
-    Get list of remote files (streams) available for download.
-    """
-    def _get_session(desc):
-        if not (conf.AUTH.login and conf.AUTH.password):
-            raise ValueError('Login or password are not configured')
-
-        payload = {
-            'login': conf.AUTH.login,
-            'password': conf.AUTH.password
-        }
-
-        # get available files (streams) from classic replay...
-        if replay_type == Rtypes.RTMP:
-            conf_section = conf.RTMP
-        # ...or from mobile replay
-        elif replay_type == Rtypes.HTTP:
-            conf_section = conf.HTTP
-        else:
-            raise ValueError('Unrecognized replay type')
-
-        with session() as ses:
-            ses.post(conf_section.login_url, data=payload)
-            response = ses.get(conf_section.replay_url)
-            for each_line in response.text.splitlines():
-                match = re.search(conf_section.list_regex, each_line)
-                if match:
-                    print(match.group(1), file=desc)
-
-    # output to file or to stdout?
-    if outfile == '-':
-        _get_session(sys.stdout)
-    else:
-        with open(outfile, 'a' if append else 'w') as ofl:
-            _get_session(ofl)
-
-
-def get_list_from_file(list_file: str) -> list:
-    """
-    Return list of lines in file.
-    """
-    with open(list_file) as ifl:
-        return ifl.read().splitlines()
-
-
-def check_required_tools(work):
-    """
-    Check if it's possible to run all required tools.
-    """
-    all_required_tools = set()
-    for task in work:
-        if hasattr(task, 'required_tools'):
-            all_required_tools.update(task.required_tools)
-        elif hasattr(task, 'obj') and hasattr(task.obj, 'required_tools'):
-            all_required_tools.update(task.obj.required_tools)
-
-    all_available = True
-    for tool in all_required_tools:
-        try:
-            with open(os.devnull, 'w') as devnull:
-                Popen([tool], stdout=devnull, stderr=devnull)
-        except OSError as emsg:
-            print("Cannot {} the '{}' command".format(
-                'find' if emsg.errno == os.errno.ENOENT else 'run', tool), file=sys.stderr)
-            all_available = False
-
-    if not all_available:
-        sys.exit(ExitCodes.CONFIG)
-
-
-def get_config_file(cmdarg):
-    """
-    Find configuration file.
-    """
-    # config file specified on command line
-    if cmdarg:
-        cflist = (cmdarg, )
-    else:
-        # otherwise find config file in default locations
-        cflist = (os.path.expanduser('~/.config/replay_downloader/replay_downloader.ini'),
-                  'replay_downloader.ini')
-
-    config_file = ''
-    for cfile in cflist:
-        try:
-            with open(cfile):
-                config_file = cfile
-                break
-        except EnvironmentError:
-            pass
-
-    if not config_file:
-        if cmdarg:
-            raise EnvironmentError("cannot open config file '{}'".format(cmdarg))
-        else:
-            raise EnvironmentError("no config file found")
-
-    return Config(config_file)
-
-
-def do_the_work(work, msg_handler):
-    """
-    The main thing. Loop untill all work is done.
-    """
-    with CleanExit(work):
-        # loop until there's no work left to do
-        done = False
-        while not done:
-            done = True
-            for task in work:
-                if not task():
-                    done = False
-
-            # print messages produced during this iterration
-            msg_handler()
-            time.sleep(0.5)
-
-
-#
-# Supporting functions for CLI
-#
-
-
 def cmd_arguments():
-    """
-    Command line options.
-    """
+    """Command line options."""
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config-file', metavar='FILE',
                         help='configuration file')
@@ -921,49 +68,31 @@ def cmd_arguments():
     return parser
 
 
-def setup_messages(args):
-    """
-    Instantiate "messages" and choose how its output will be presented.
-    """
-    messages = Msgs()
-    if args.brief:
-        msg_handler = messages.print_dots
-    elif args.quiet:
-        msg_handler = messages.print_dummy
-    else:
-        msg_handler = messages.print
-    return messages, msg_handler
-
-
 def get_avail_list(cmd_parser, cfg):
-    """
-    Get list of available recordings and exit.
-    """
+    """Gets list of available recordings and exit."""
     args = cmd_parser.parse_args()
     if args.get_avail:
-        get_replay_list(Rtypes.RTMP, cfg, args.get_avail, args.append)
-        sys.exit(ExitCodes.SUCCESS)
+        download.get_replay_list(mappings.Rtypes.RTMP, cfg, args.get_avail, args.append)
+        sys.exit(mappings.ExitCodes.SUCCESS)
     elif args.get_avail_mobile:
-        get_replay_list(Rtypes.HTTP, cfg, args.get_avail_mobile, args.append)
-        sys.exit(ExitCodes.SUCCESS)
+        download.get_replay_list(mappings.Rtypes.HTTP, cfg, args.get_avail_mobile, args.append)
+        sys.exit(mappings.ExitCodes.SUCCESS)
     elif args.append:
         cmd_parser.print_help()
         print('\n-a (--append) allowed only in combination with '
               '-l (--get-avail) and -k (--get-avail-mobile)', file=sys.stderr)
-        sys.exit(ExitCodes.CONFIG)
+        sys.exit(mappings.ExitCodes.CONFIG)
 
 
 def get_list_to_download(args):
-    """
-    Return list of files to download.
-    """
+    """Returns list of files to download."""
     # list of files to download was specified
     if args.get_list:
         try:
-            to_download_list = get_list_from_file(args.get_list)
+            to_download_list = utils.get_list_from_file(args.get_list)
         except EnvironmentError as emsg:
             print(str(emsg), file=sys.stderr)
-            sys.exit(ExitCodes.CONFIG)
+            sys.exit(mappings.ExitCodes.CONFIG)
     # single file to download was specified
     elif args.download_file:
         to_download_list = [args.download_file]
@@ -971,46 +100,42 @@ def get_list_to_download(args):
 
 
 def get_retval(messages):
-    """
-    Determine return value.
-    """
-    retval = ExitCodes.SUCCESS
-    for msglist in messages.get_msglists_with_key(MsgTypes.failed):
-        if len(msglist) > 0:
-            retval = ExitCodes.FAIL
+    """Determines return value."""
+    retval = mappings.ExitCodes.SUCCESS
+    for msglist in messages.get_msglists_with_key(mappings.MsgTypes.failed):
+        if msglist:
+            retval = mappings.ExitCodes.FAIL
             break
-    if retval == ExitCodes.SUCCESS:
-        for msglist in messages.get_msglists_with_key(MsgTypes.skipped):
-            if len(msglist) > 0:
-                retval = ExitCodes.INCOMPLETE
+    if retval == mappings.ExitCodes.SUCCESS:
+        for msglist in messages.get_msglists_with_key(mappings.MsgTypes.skipped):
+            if msglist:
+                retval = mappings.ExitCodes.INCOMPLETE
                 break
     return retval
 
 
 def main():
-    """
-    Run this when launched from command line.
-    """
+    """Run this when launched from command line."""
     cmd_parser = cmd_arguments()
     args = cmd_parser.parse_args()
 
     # no option was passed to the program
     if len(sys.argv) <= 1:
         cmd_parser.print_help()
-        sys.exit(ExitCodes.CONFIG)
+        sys.exit(mappings.ExitCodes.CONFIG)
 
     try:
-        cfg = get_config_file(args.config_file)
+        cfg = config.get_config_file(args.config_file)
     except EnvironmentError as cfge:
         print('Error: {}'.format(cfge), file=sys.stderr)
-        sys.exit(ExitCodes.CONFIG)
+        sys.exit(mappings.ExitCodes.CONFIG)
 
     get_avail_list(cmd_parser, cfg)
-    log_init(args.logfile)
-    messages, msg_handler = setup_messages(args)
+    log.log_init(args.logfile)
+    messages, msg_handler = msgs.setup_messages(args)
 
     # instantiate work pipeline
-    work = Work()
+    work = perform.Work()
 
     # number of concurrent processes
     avail_slots = args.concurrent if args.concurrent > 0 else cfg.RUN.concurrency
@@ -1029,24 +154,24 @@ def main():
     #
 
     # get processed list of files to download
-    to_download = Download.parse_todownload_list(get_list_to_download(args))
+    to_download = download.Download.parse_todownload_list(get_list_to_download(args))
 
     # download setup
-    downloads = Download(cfg, to_download, destination=workdir)
-    scheduler = ProcScheduler(downloads, avail_slots)
+    downloads = download.Download(cfg, to_download, destination=workdir)
+    scheduler = perform.ProcScheduler(downloads, avail_slots)
     work.add(scheduler)
 
     # extract audio setup
-    extracting = ExtractAudio(cfg, downloads.finished_ready, destination=dest_dir)
-    scheduler = ProcScheduler(extracting, avail_slots)
+    extracting = extract_audio.ExtractAudio(cfg, downloads.finished_ready, destination=dest_dir)
+    scheduler = perform.ProcScheduler(extracting, avail_slots)
     work.add(scheduler)
 
     if args.cleanup:
         # cleanup setup
-        work.add(Cleanup(extracting.finished_ready))
+        work.add(cleanup.Cleanup(extracting.finished_ready))
 
-    check_required_tools(work)
-    do_the_work(work, msg_handler)
+    perform.check_required_tools(work)
+    perform.do_the_work(work, msg_handler)
 
     if not args.quiet:
         messages.print_summary()
