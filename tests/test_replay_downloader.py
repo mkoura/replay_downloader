@@ -7,30 +7,15 @@
 import unittest
 import os
 import time
-from replay_downloader import (
-    Fileinfo,
-    Procinfo,
-    Rtypes,
-    Ftypes,
-    # file_ext_d,
-    MsgTypes,
-    Config,
-    # ProcScheduler,
-    Work,
-    MsgList,
-    # Msgs,
-    FileRecord,
-    Download,
-    ExtractAudio,
-    # Cleanup,
-    # out_add,
-    # remove_ext,
-    # log_init,
-    # logit,
-    # get_logfile,
-    # get_replay_list,
-    get_list_from_file,
-)
+
+from replay_downloader.config import Config
+from replay_downloader.download import Download
+from replay_downloader.extract_audio import ExtractAudio
+from replay_downloader.mappings import Fileinfo, Ftypes, MsgTypes, Procinfo, Rtypes
+from replay_downloader.msgs import MsgList
+from replay_downloader.perform import Work
+from replay_downloader.record import FileRecord
+from replay_downloader.utils import get_list_from_file
 
 
 class TestDownloads(unittest.TestCase):
