@@ -1,4 +1,4 @@
-# replay_downloader [![Build Status](https://api.travis-ci.org/mkoura/replay_downloader.svg?branch=master)](https://travis-ci.org/mkoura/replay_downloader)
+# Moved to https://gitlab.com/mkourim/replay_downloader [![Build Status](https://api.travis-ci.org/mkoura/replay_downloader.svg?branch=master)](https://travis-ci.org/mkoura/replay_downloader)
 
 
 Downloads list of available replay files and download the actual files from user-supplied list.
